@@ -1,7 +1,10 @@
-.venv/
-__pycache__/
+# Media and visual outputs
 *.mp4
-*.pt
-*.png
 *.jpg
+*.png
+
+# Data outputs (if you don't need to track raw results)
 *.json
+
+# Model weights
+*.pt
