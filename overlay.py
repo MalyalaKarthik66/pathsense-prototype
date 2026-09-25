@@ -19,6 +19,10 @@ import numpy as np
 
 
 DECISION_COLORS = {"GO": (0, 255, 128), "CAUTION": (0, 165, 255), "BRAKE": (0, 0, 255)}
+LABEL_COLORS = {"GO STRAIGHT": (0, 220, 110), "STEER LEFT": (0, 215, 255), "STEER RIGHT": (0, 215, 255),
+                "SLOW DOWN": (0, 165, 255), "BRAKE": (0, 0, 255), "NO SAFE PATH - BRAKE": (0, 0, 150)}
+PATH_COLORS = {"CLEAR": (0, 200, 100), "PARTIAL": (0, 180, 255), "BLOCKED": (0, 0, 230)}
+BOTTOM_BAR_H = 100
 
 
 def fit_text(text: str, scale: float, thickness: int, max_w: int) -> str:
@@ -41,9 +45,10 @@ class HUDOverlay:
         self.pip_size = pip_size
         self.margin = pip_margin
         self.dark = dark_theme
+        self._timeline: Optional[np.ndarray] = None  # per-frame decision colours for the history strip
 
     def _pip_side(self, w: int, h: int) -> int:
-        top, bottom = self.margin + 75, 85 + self.margin  # below top banner, above bottom strip
+        top, bottom = self.margin + 75, BOTTOM_BAR_H + 8 + self.margin  # below top banner, above strip + timeline
         side = self.pip_size[0] if self.pip_size else int(round(0.47 * h))
         return int(max(0, min(side, h - top - bottom, int(0.45 * w))))
 
@@ -140,9 +145,11 @@ class HUDOverlay:
 
             # TTC Badge Text
             ttc_str = f"TTC: {ttc:.1f}s" if ttc is not None else "TTC: N/A"
-            label = f"#{tid} {cname} | {dist:.1f}m | {ttc_str}"
+            label = f"#{tid} {obj.get('display_class', cname)} | {dist:.1f}m | {ttc_str}"
             if abs(closing_kmh) > 1.0:
                 label += f" | {closing_kmh:+.0f}km/h"
+            if obj.get("behavior") and obj["behavior"] != "SIDE PASS":
+                label += f" | {obj['behavior']}"
 
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.44, 1)
             tag_y1 = max(0, y1 - th - 8)
@@ -152,7 +159,8 @@ class HUDOverlay:
 
             # In-box tag only for the object that drives the current decision
             if is_key or (decision is None and hazard == "CRITICAL"):
-                warn = "COLLISION RISK" if dec_state == "BRAKE" or decision is None else "PATH THREAT"
+                warn = obj.get("behavior") if obj.get("behavior") in ("CUT-IN", "CROSSING", "ONCOMING") else \
+                    ("COLLISION RISK" if dec_state == "BRAKE" or decision is None else "PATH THREAT")
                 (ww, wh), _ = cv2.getTextSize(warn, cv2.FONT_HERSHEY_SIMPLEX, 0.50, 2)
                 wx = x1 + max(0, (x2 - x1 - ww) // 2)
                 wy = y1 + 24
@@ -221,7 +229,7 @@ class HUDOverlay:
         cv2.putText(canvas, status_title, (bx1 + 14, 41), cv2.FONT_HERSHEY_SIMPLEX, 0.62, b_txt_col, 2, cv2.LINE_AA)
 
         # 4. Bottom Cockpit Instrument Strip
-        bottom_bar_h = 85
+        bottom_bar_h = BOTTOM_BAR_H
         by1 = h - bottom_bar_h
         bot_bg = canvas[by1:h, 0:w].copy()
         cv2.rectangle(canvas, (0, by1), (w, h), (12, 16, 20), -1)
@@ -280,14 +288,8 @@ class HUDOverlay:
         gauge4_x = div3_x + 25
         avail = w - gauge4_x - 12
         if decision is not None:
-            cv2.putText(canvas, "DECISION", (gauge4_x, by1 + 22), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (160, 180, 200), 1, cv2.LINE_AA)
-            col = DECISION_COLORS[decision["state"]]
-            if decision["label"].startswith("STEER"):
-                col = (0, 215, 255)
-            cv2.putText(canvas, fit_text(decision["label"], 0.70, 2, avail), (gauge4_x, by1 + 52),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.70, col, 2, cv2.LINE_AA)
-            cv2.putText(canvas, fit_text(decision.get("reason", ""), 0.40, 1, avail), (gauge4_x, by1 + 74),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.40, (200, 210, 220), 1, cv2.LINE_AA)
+            self._draw_timeline(canvas, by1, frame_idx, total_frames, decision["label"])
+            self._draw_decision_panel(canvas, gauge4_x, by1, avail, decision, speed_kmh)
             return canvas
         cv2.putText(canvas, "PLANNER STATE", (gauge4_x, by1 + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (160, 180, 200), 1, cv2.LINE_AA)
         if planner_blocked:
@@ -299,3 +301,56 @@ class HUDOverlay:
         cv2.putText(canvas, plan_state, (gauge4_x, by1 + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.70, state_col, 2, cv2.LINE_AA)
 
         return canvas
+
+    def _draw_timeline(self, canvas: np.ndarray, by1: int, frame_idx: int, total_frames: int, label: str):
+        """Thin decision-history strip above the bottom bar (whole video mapped to the frame width)."""
+        if not total_frames or total_frames <= 0:
+            return
+        h, w = canvas.shape[:2]
+        if self._timeline is None or len(self._timeline) != total_frames:
+            self._timeline = np.zeros((total_frames, 3), np.uint8)
+            self._timeline[:] = (45, 45, 45)
+        if 0 <= frame_idx < total_frames:
+            self._timeline[frame_idx] = LABEL_COLORS.get(label, (128, 128, 128))
+        strip = cv2.resize(self._timeline[None, :, :], (w, 6), interpolation=cv2.INTER_NEAREST)
+        canvas[by1 - 7:by1 - 1, 0:w] = strip
+        cx = int((frame_idx + 0.5) / total_frames * w)
+        cv2.line(canvas, (cx, by1 - 10), (cx, by1 - 1), (255, 255, 255), 2)
+
+    def _draw_decision_panel(self, canvas: np.ndarray, x: int, by1: int, avail: int, d: Dict[str, Any], speed_kmh: float):
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        grey, white = (160, 180, 200), (235, 240, 245)
+        # Row 1: title, path status chip, threat count
+        cv2.putText(canvas, "DECISION", (x, by1 + 18), font, 0.40, grey, 1, cv2.LINE_AA)
+        path = d.get("path_status") or "CLEAR"
+        chip = f"PATH {path}" + (f" {d['blocked_arcs']}/{d['n_arcs']}" if path == "PARTIAL" and d.get("n_arcs") else "")
+        (cw, ch), _ = cv2.getTextSize(chip, font, 0.40, 1)
+        thr = f"THREATS {d.get('threats', 0)}"
+        (tw, _), _ = cv2.getTextSize(thr, font, 0.40, 1)
+        chip_x = x + avail - cw - tw - 22
+        cv2.rectangle(canvas, (chip_x - 5, by1 + 5), (chip_x + cw + 5, by1 + 23), PATH_COLORS.get(path, grey), -1)
+        cv2.putText(canvas, chip, (chip_x, by1 + 19), font, 0.40, (0, 0, 0) if path != "BLOCKED" else white, 1, cv2.LINE_AA)
+        cv2.putText(canvas, thr, (x + avail - tw, by1 + 19), font, 0.40, white if d.get("threats") else grey, 1, cv2.LINE_AA)
+        # Row 2: the decision itself
+        label = d["label"]
+        cv2.putText(canvas, fit_text(label, 0.74, 2, avail), (x, by1 + 47), font, 0.74, LABEL_COLORS.get(label, white), 2, cv2.LINE_AA)
+        # Row 3: reason title
+        title = d.get("title") or ""
+        if d.get("holding") and label != "NO SAFE PATH - BRAKE" and not title.lower().startswith(("holding", "clearing")):
+            title = f"{title} (holding)"
+        cv2.putText(canvas, fit_text(title, 0.48, 1, avail), (x, by1 + 69), font, 0.48, white, 1, cv2.LINE_AA)
+        # Row 4: responsible object details (or context when clear)
+        k = d.get("key")
+        if label == "NO SAFE PATH - BRAKE":
+            det = (f"{d.get('blocked_arcs')}/{d.get('n_arcs')} candidate arcs collide" if d.get("blocked_now", True)
+                   else f"clearing: {d.get('blocked_arcs')}/{d.get('n_arcs')} arcs blocked now")
+            if k and k.get("class_name"):
+                det += f" | nearest {k['class_name']} {k['distance_m']:.1f} m"
+        elif k and k.get("class_name"):
+            ttc = f"TTC {k['ttc_s']:.1f}s" if k.get("ttc_s") is not None else "TTC N/A"
+            det = f"{k['class_name']} #{k.get('track_id')} | {k['distance_m']:.1f} m | {ttc}"
+            if k.get("behavior") and k["behavior"] != "SIDE PASS":
+                det += f" | {k['behavior']}"
+        else:
+            det = f"speed {speed_kmh:.0f} km/h | {d.get('reason', '')}"
+        cv2.putText(canvas, fit_text(det, 0.42, 1, avail), (x, by1 + 90), font, 0.42, grey, 1, cv2.LINE_AA)

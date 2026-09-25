@@ -38,6 +38,9 @@ from costmap import BEVCostmap
 from planner import DynamicArcPlanner
 from overlay import HUDOverlay
 from decision import DecisionState
+from behavior import BehaviorAnalyzer
+from autorickshaw import AutoRickshawClassifier
+from events import EventLogger, draw_timeline, replay as replay_event
 
 DEFAULT_FPS = 25.0
 
@@ -50,6 +53,22 @@ def resolve_device(device: str) -> str:
         print(f"[Warning] --device {device} requested but CUDA is not available to PyTorch; falling back to CPU.")
         return "cpu"
     return "cuda:0" if device == "cuda" else device
+
+
+def estimate_fps_from_timestamps(path: str, n_frames: int = 90) -> Optional[float]:
+    """Frame rate from decoded frame timestamps, for containers that report a bogus FPS (e.g. 600)."""
+    cap = cv2.VideoCapture(path)
+    ts = []
+    while len(ts) < n_frames:
+        ok, _ = cap.read()
+        if not ok:
+            break
+        ts.append(cap.get(cv2.CAP_PROP_POS_MSEC))
+    cap.release()
+    if len(ts) < 10 or ts[-1] <= ts[0]:
+        return None
+    est = (len(ts) - 1) / ((ts[-1] - ts[0]) / 1000.0)
+    return float(est) if 1.0 <= est <= 240.0 else None
 
 
 def default_output_path(input_video: str) -> str:
@@ -87,7 +106,8 @@ def run_pipeline(
     depth_mode: str = "ground",
     horizon_ratio: float = 0.55,
     camera_height_m: float = 1.30,
-    auto_geometry: bool = True
+    auto_geometry: bool = True,
+    auto_classifier: bool = True
 ) -> Dict[str, Any]:
     print("=" * 70)
     print("  PROJECT PATHSENSE: AUTONOMOUS VEHICLE PERCEPTION & PLANNING")
@@ -111,10 +131,15 @@ def run_pipeline(
     height, width = first_frame.shape[:2]
 
     fps = cap.get(cv2.CAP_PROP_FPS)
-    if not fps or not np.isfinite(fps) or fps < 1.0 or fps > 240.0:
-        print(f"[Warning] Video reports invalid FPS ({fps}); assuming {DEFAULT_FPS}.")
-        fps = DEFAULT_FPS
     reported_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if not fps or not np.isfinite(fps) or fps < 1.0 or fps > 240.0:
+        est = estimate_fps_from_timestamps(input_video)
+        print(f"[Warning] Video reports invalid FPS ({fps}); "
+              + (f"using {est:.2f} FPS estimated from frame timestamps." if est else f"assuming {DEFAULT_FPS}."))
+        if est and fps and np.isfinite(fps) and fps > 0 and reported_frames > 0:
+            # the container's frame count was derived from the same bogus rate: rescale it (duration is consistent)
+            reported_frames = int(round(reported_frames * est / fps))
+        fps = est or DEFAULT_FPS
     total_frames = reported_frames if reported_frames > 0 else None  # None -> unknown, read until EOF
     if max_frames:
         frames_to_process = min(total_frames, max_frames) if total_frames else max_frames
@@ -164,6 +189,11 @@ def run_pipeline(
     costmap_builder = BEVCostmap(img_width=width, img_height=height)
     planner = DynamicArcPlanner(wheelbase_m=2.70, max_steering_deg=15.0, num_candidates=17)
     decision = DecisionState(fps=fps)
+    behaviors = BehaviorAnalyzer(fps=fps, frame_width=width, frame_height=height)
+    auto_cls = AutoRickshawClassifier(fps=fps, device=device, enabled=auto_classifier)
+    if auto_classifier and not auto_cls.enabled:
+        print(f"  [Warning] auto-rickshaw classifier disabled ({auto_cls.error}); keeping YOLO labels")
+    event_log = EventLogger(input_video, fps)
     geometry_synced = False
 
     # Optional precomputed depth cache for instant benchmarking
@@ -214,6 +244,14 @@ def run_pipeline(
         raw_tracks = detector.track_frame(frame)
         obstacle_boxes = [obj["bbox"] for obj in raw_tracks]
         stage_time["detect_track"] += time.time() - t
+
+        # A2. Track-level auto-rickshaw refinement of YOLO truck/bus labels (zero-shot CLIP, see autorickshaw.py)
+        t = time.time()
+        auto_cls.update(frame, raw_tracks, frame_idx)
+        for obj in raw_tracks:
+            if obj["class_name"] == "auto-rickshaw":
+                obj["display_class"] = "auto (est.)"
+        stage_time["auto_classifier"] += time.time() - t
 
         # B. Monocular Depth Estimation
         # Use depth cache if available to skip redundant inference in multi-pass testing
@@ -278,10 +316,14 @@ def run_pipeline(
         )
         stage_time["planner"] += time.time() - t
 
-        # F2. Decision state (corridor + TTC + blocked paths + temporal hysteresis)
+        # F2. Behaviour cues (cut-in / crossing / oncoming / slow lead) from track history, then decision state
         t = time.time()
+        for b_tid, b_name, b_obj in behaviors.update(projected_objs, frame_idx, ego_speed_mps=smooth_spd / 3.6):
+            if b_name != "SIDE PASS":
+                event_log.log_behavior(frame_idx, b_tid, b_name, b_obj, smooth_spd)
         decision_out = decision.update(projected_objs, best_path, planner.all_blocked, steer_deg,
-                                       ego_speed_mps=smooth_spd / 3.6)
+                                       ego_speed_mps=smooth_spd / 3.6, arc_blocked=planner.lethal_flags)
+        event_log.log_frame(frame_idx, decision_out, steer_deg, smooth_spd)
         stage_time["decision"] += time.time() - t
 
         # G. Render BEV Image with Planned Path
@@ -402,8 +444,19 @@ def run_pipeline(
                                for a, b, r in stats["brake_episodes"]],
         "depth_geometry": depth_estimator.geometry,
         "depth_heuristic_fallback_frames": depth_estimator.frames_heuristic_fallback,
+        "behavior_counts": {k: v for k, v in behaviors.counts.items()},
+        "auto_rickshaw": {"enabled": auto_cls.enabled, "confirmed_tracks": auto_cls.confirmed_tracks,
+                          "crops_classified": auto_cls.classified_crops},
+        "decision_events": sum(1 for e in event_log.events if e["type"] == "decision"),
         "output_check": out_info,
     }
+
+    # Event timeline / audit trail (companion files next to the rendered video)
+    base = os.path.splitext(output_video)[0].replace("_pathsense", "")
+    events_json, timeline_png = f"{base}_events.json", f"{base}_timeline.png"
+    ev_data = event_log.save(events_json, frame_idx - 1, rendered_video=output_video)
+    draw_timeline(ev_data, timeline_png)
+    summary["events_json"], summary["timeline_png"] = events_json, timeline_png
 
     print("\n" + "=" * 70)
     print("  PIPELINE RUN COMPLETE!")
@@ -416,6 +469,10 @@ def run_pipeline(
     print(f"  Decision:          {summary['decision_label_pct']} | {summary['decision_transitions_per_min']} transitions/min | "
           f"{summary['brake_episodes']} BRAKE episodes (median {summary['brake_episode_median_s']} s)")
     print(f"  Depth geometry:    {summary['depth_geometry']}")
+    print(f"  Behaviour cues:    {summary['behavior_counts']}")
+    print(f"  Auto-rickshaw:     {summary['auto_rickshaw']}")
+    print(f"  Events:            {len(ev_data['events'])} ({summary['decision_events']} decision changes) -> {events_json}")
+    print(f"  Timeline:          {timeline_png}   (inspect: python events.py list {events_json})")
     print(f"  Final Travelled:   {py:.1f} meters (monocular estimate)")
     if peak_gpu_mb is not None:
         print(f"  Peak GPU memory:   {peak_gpu_mb} MB (PyTorch allocations)")
@@ -450,7 +507,19 @@ if __name__ == "__main__":
     parser.add_argument("--horizon-ratio", type=float, default=0.55, help="Initial horizon row as a fraction of image height")
     parser.add_argument("--camera-height", type=float, default=1.30, help="Initial camera height above the road (m)")
     parser.add_argument("--no-auto-geometry", action="store_true", help="Disable self-calibration of horizon/camera height")
+    parser.add_argument("--no-auto-classifier", action="store_true", help="Keep YOLO truck/bus labels (skip CLIP auto-rickshaw refinement)")
+    parser.add_argument("--replay-event", type=int, default=None,
+                        help="Do not process: show event #N from a previous run's events JSON and export a clip/still")
     args = parser.parse_args()
+
+    if args.replay_event is not None:
+        out = args.output or default_output_path(args.input)
+        ev_path = os.path.splitext(out)[0].replace("_pathsense", "") + "_events.json"
+        if not os.path.isfile(ev_path):
+            print(f"[Error] No events file {ev_path}; run the pipeline on this input first.")
+            sys.exit(1)
+        replay_event(json.load(open(ev_path)), args.replay_event, out)
+        sys.exit(0)
 
     try:
         run_pipeline(
@@ -466,7 +535,8 @@ if __name__ == "__main__":
             depth_mode=args.depth_mode,
             horizon_ratio=args.horizon_ratio,
             camera_height_m=args.camera_height,
-            auto_geometry=not args.no_auto_geometry
+            auto_geometry=not args.no_auto_geometry,
+            auto_classifier=not args.no_auto_classifier
         )
     except (FileNotFoundError, IOError, RuntimeError) as e:
         print(f"\n[Error] {e}")

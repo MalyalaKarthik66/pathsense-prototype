@@ -16,6 +16,8 @@ from ttc import TTCComputer
 from costmap import BEVCostmap, CLASS_SAFETY_PROFILES
 from planner import DynamicArcPlanner
 from decision import DecisionState, GO, CAUTION, BRAKE
+from behavior import BehaviorAnalyzer
+from detect_track import suppress_riders, apply_rider_memory
 
 FPS = 25.0
 W, H = 1280, 720
@@ -40,7 +42,9 @@ def run(actors: List[Actor], seconds: float, noise: float = 0.03, seed: int = 0,
     cm = BEVCostmap(img_width=W, img_height=H)
     pl = DynamicArcPlanner()
     dec = DecisionState(fps=FPS)
+    beh = BehaviorAnalyzer(fps=FPS, frame_width=W, frame_height=H)
     trace = []
+    behaviors = set()
     for i in range(int(seconds * FPS)):
         t = i / FPS
         objs = []
@@ -66,19 +70,29 @@ def run(actors: List[Actor], seconds: float, noise: float = 0.03, seed: int = 0,
         ttc.prune(i)
         grid, proj = cm.build_costmap(objs)
         _, _, steer, path, _ = pl.evaluate_paths(grid, cm)
-        out = dec.update(proj, path, pl.all_blocked, steer, ego_speed_mps=ego_speed)
-        trace.append((out["level"], out["label"], steer, out["reason"]))
-    return trace, dec
+        for _, b, _ in beh.update(proj, i, ego_speed_mps=ego_speed):
+            behaviors.add(b)
+        out = dec.update(proj, path, pl.all_blocked, steer, ego_speed_mps=ego_speed, arc_blocked=pl.lethal_flags)
+        trace.append((out["level"], out["label"], steer, out["reason"], out))
+    return trace, dec, behaviors
 
 
 def check(name: str, actors: List[Actor], seconds: float, final: Set[str], max_level: int = BRAKE,
           must_reach: int = GO, max_abs_steer: Optional[float] = None, max_transitions: Optional[int] = None,
-          final_level: Optional[Set[int]] = None, ego_speed: Optional[float] = None) -> bool:
-    trace, dec = run(actors, seconds, ego_speed=ego_speed)
-    levels = [lv for lv, _, _, _ in trace]
+          final_level: Optional[Set[int]] = None, ego_speed: Optional[float] = None,
+          expect_behavior: Optional[str] = None, forbid_behaviors: Set[str] = frozenset(),
+          expect_title: Optional[str] = None) -> bool:
+    trace, dec, behaviors = run(actors, seconds, ego_speed=ego_speed)
+    levels = [t[0] for t in trace]
     label, reason = trace[-1][1], trace[-1][3]
-    steer_max = max(abs(s) for _, _, s, _ in trace)
+    steer_max = max(abs(t[2]) for t in trace)
     problems = []
+    if expect_behavior and expect_behavior not in behaviors:
+        problems.append(f"behaviour {expect_behavior} not detected (got {sorted(behaviors)})")
+    if behaviors & set(forbid_behaviors):
+        problems.append(f"unexpected behaviour {sorted(behaviors & set(forbid_behaviors))}")
+    if expect_title and not any(expect_title.lower() in (t[4].get("title") or "").lower() for t in trace):
+        problems.append(f"reason title containing {expect_title!r} never shown")
     if final and label not in final:
         problems.append(f"final label {label!r} not in {sorted(final)}")
     if final_level is not None and levels[-1] not in final_level:
@@ -91,15 +105,50 @@ def check(name: str, actors: List[Actor], seconds: float, final: Set[str], max_l
         problems.append(f"|steer| {steer_max:.1f} > {max_abs_steer}")
     if max_transitions is not None and dec.transitions > max_transitions:
         problems.append(f"{dec.transitions} state transitions > {max_transitions}")
+    # HUD invariant: NO SAFE PATH is only ever shown together with a BLOCKED path status
+    if any(tr[1] == "NO SAFE PATH - BRAKE" and tr[4].get("path_status") != "BLOCKED" for tr in trace):
+        problems.append("NO SAFE PATH shown without PATH BLOCKED")
     # BRAKE must never drop straight to GO
     for a, b in zip(levels, levels[1:]):
         if a == BRAKE and b == GO:
             problems.append("direct BRAKE -> GO transition"); break
     ok = not problems
+    btxt = ",".join(sorted(behaviors)) if behaviors else "-"
     print(f"  [{'PASS' if ok else 'FAIL'}] {name:52s} final={label:22s} max_level={max(levels)} "
-          f"max|steer|={steer_max:4.1f} transitions={dec.transitions}" + ("" if ok else f"  <-- {'; '.join(problems)}"))
+          f"max|steer|={steer_max:4.1f} transitions={dec.transitions} behaviours={btxt}" + ("" if ok else f"  <-- {'; '.join(problems)}"))
     if not ok:
         print(f"         last reason: {reason}")
+    return ok
+
+
+def auto_rickshaw_real_image_check() -> bool:
+    """AR2: YOLO + CLIP refinement on two real Bangalore frames (skipped if the clip is not downloaded)."""
+    import os, cv2
+    path = "data/samples/india_bangalore.webm"
+    if not os.path.isfile(path):
+        print(f"  [SKIP] {'AR2 auto-rickshaw recognition on real frames':52s} ({path} not present)")
+        return True
+    from detect_track import DetectorTracker
+    from autorickshaw import AutoRickshawClassifier
+    det, clf = DetectorTracker(), AutoRickshawClassifier(fps=30.0, every_s=0.0)
+    cap, i, frames = cv2.VideoCapture(path), 0, {}
+    while cap.grab() and i <= 3710:
+        if i in (1000, 1001, 3708, 3709):  # lead auto #62 (~frame 1000); BMTC bus (~frame 3709)
+            frames[i] = cap.retrieve()[1]
+        i += 1
+    ok_auto = ok_bus = False
+    for pair, want in (((1000, 1001), "auto"), ((3708, 3709), "bus")):
+        for f in pair:
+            objs = det.track_frame(frames[f])
+            clf.update(frames[f], objs, f)
+        classes = {o["class_name"] for o in objs}
+        if want == "auto":
+            ok_auto = "auto-rickshaw" in classes
+        else:
+            ok_bus = "bus" in classes or "truck" in classes
+    ok = ok_auto and ok_bus and clf.enabled
+    print(f"  [{'PASS' if ok else 'FAIL'}] {'AR2 auto-rickshaw recognition on real frames':52s} auto_found={ok_auto} "
+          f"bus_kept={ok_bus} classifier_enabled={clf.enabled} {clf.error or ''}")
     return ok
 
 
@@ -160,6 +209,58 @@ def main() -> int:
     results.append(check("P1 pedestrian crossing into lane (x 3.5->0 @1.2 m/s, 9 m)",
                          [(1, "person", lambda t: max(0.0, 3.5 - 1.2 * t), closing(9, 2.0, stop=4.0))], 4,
                          {"BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=BRAKE))
+    # --- behaviour cues (behavior.py) + escalation
+    results.append(check("CI1 motorcycle cut-in from right (x 3.6->0.3, 9 m)",
+                         [(1, "motorcycle", lambda t: max(0.3, 3.6 - 1.4 * t), const(9.0))], 4,
+                         {"SLOW DOWN", "BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=CAUTION, ego_speed=8.0,
+                         expect_behavior="CUT-IN", expect_title="cut-in"))
+    results.append(check("CI2 car cut-in from left, closing (x -3.8->-0.2, 9->4 m)",
+                         [(1, "car", lambda t: min(-0.2, -3.8 + 1.6 * t), closing(9, 1.5, stop=4.0))], 4,
+                         {"SLOW DOWN", "BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=CAUTION, ego_speed=8.0,
+                         expect_behavior="CUT-IN"))
+    results.append(check("ON1 oncoming vehicle in ego corridor (x=0.6, 16 m/s closing)",
+                         [(1, "car", const(0.6), closing(30, 16.0, stop=2.0))], 2,
+                         {"BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=BRAKE, ego_speed=8.0, expect_behavior="ONCOMING"))
+    results.append(check("ON2 oncoming vehicle in its own lane (x=-3.6, passes by)",
+                         [(1, "car", const(-3.6), lambda t: (30 - 16.0 * t) if t < 1.7 else None)], 3,
+                         GO_LABELS, max_level=CAUTION, ego_speed=8.0, forbid_behaviors={"CUT-IN"}))
+    results.append(check("YAW ego on a curve: parked cars drift sideways (no CUT-IN)",
+                         [(1, "car", lambda t: 3.5 - 0.15 * 8 * t, const(8.0)), (2, "car", lambda t: -3.5 - 0.15 * 12 * t, const(12.0)),
+                          (3, "car", lambda t: 4.5 - 0.15 * 16 * t, const(16.0))], 2.5,
+                         set(), ego_speed=6.0, forbid_behaviors={"CUT-IN"}))
+    results.append(check("ON3 oncoming car drifting inward, fast approach (no CUT-IN)",
+                         [(1, "car", lambda t: 3.8 - 0.8 * t, closing(22, 14.0, stop=3.0))], 1.5,
+                         set(), ego_speed=7.0, forbid_behaviors={"CUT-IN"}))
+    results.append(check("AN1 cow crossing the road (x -4->+4 @1 m/s, 12 m, ego 4 m/s)",
+                         [(1, "cow", lambda t: -4.0 + 1.0 * t, closing(12, 4.0, stop=5.0))], 3,
+                         {"SLOW DOWN", "BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=CAUTION, ego_speed=4.0,
+                         expect_behavior="CROSSING"))
+    results.append(check("SL1 stopped vehicle ahead (ego 8 m/s)", [(1, "car", const(0.0), closing(30, 8.0, stop=3.0))], 3.5,
+                         {"BRAKE", "NO SAFE PATH - BRAKE", "SLOW DOWN"}, must_reach=BRAKE, ego_speed=8.0, expect_behavior="SLOW LEAD"))
+    results.append(check("ADJ harmless adjacent vehicle alongside (x=+3.6, 6 m, same speed)",
+                         [(1, "car", const(3.6), const(6.0))], 4, GO_LABELS, max_level=GO, max_abs_steer=3.0, ego_speed=8.0,
+                         forbid_behaviors={"CUT-IN", "ONCOMING", "CROSSING"}))
+    results.append(check("EDGE vehicle alongside, cut by right frame edge (x=+2.6, 2.5 m)",
+                         [(1, "car", const(2.6), const(2.5))], 3, GO_LABELS, max_level=GO, ego_speed=6.0))
+    results.append(check("AR1 auto-rickshaw alongside (x=+2.4, 6 m): outside corridor for its width",
+                         [(1, "auto-rickshaw", const(2.4), const(6.0))], 3, GO_LABELS, max_level=GO, ego_speed=5.0))
+    results.append(auto_rickshaw_real_image_check())
+    # rider suppression (detector post-processing unit check)
+    moto = {"track_id": 1, "class_name": "motorcycle", "bbox": [600, 400, 680, 520], "confidence": 0.8}
+    rider = {"track_id": 2, "class_name": "person", "bbox": [605, 330, 675, 480], "confidence": 0.8}
+    walker = {"track_id": 3, "class_name": "person", "bbox": [820, 380, 860, 500], "confidence": 0.8}
+    tall_rider = {"track_id": 4, "class_name": "person", "bbox": [1069, 150, 1258, 715], "confidence": 0.8}  # close rider, tall box
+    edge_moto = {"track_id": 5, "class_name": "motorcycle", "bbox": [1015, 464, 1280, 716], "confidence": 0.8}
+    beside = {"track_id": 6, "class_name": "person", "bbox": [930, 380, 1000, 700], "confidence": 0.8}  # pedestrian next to it
+    kept = [o["track_id"] for o in suppress_riders([moto, rider, walker])]
+    kept2 = [o["track_id"] for o in suppress_riders([edge_moto, tall_rider, beside])]
+    # rider memory: rider #4 merged in frame 1; in frame 2 its motorcycle is not detected -> kept as two-wheeler
+    mem, riders = {}, set()
+    apply_rider_memory(suppress_riders([edge_moto, tall_rider], riders), mem, 1, riders)
+    later = apply_rider_memory([dict(tall_rider)], mem, 2, set())
+    ok = kept == [1, 3] and kept2 == [5, 6] and later[0]["class_name"] == "motorcycle"
+    print(f"  [{'PASS' if ok else 'FAIL'}] {'RS rider merged into motorcycle, pedestrian kept':52s} kept tracks={kept} / close-edge case {kept2}")
+    results.append(ok)
     # --- temporal behaviour
     results.append(check("R  recovery: closing car then disappears",
                          [(1, "car", const(0.0), lambda t: (8 - 6 * t) if t < 0.9 else None)], 5,

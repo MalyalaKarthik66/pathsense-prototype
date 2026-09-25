@@ -91,5 +91,68 @@ def prepare_samples():
     print(f"  Sample 2: {sample_2_path} ({os.path.getsize(sample_2_path)/(1024*1024):.2f} MB)")
 
 
+# Indian validation clips: all from Wikimedia Commons under CC0 / CC BY / CC BY-SA (attribution listed).
+# (file name on Commons, local path, licence, author, what it is used for)
+INDIAN_CLIPS = [
+    ("Bangalore 20220814 155101.webm", "samples/india_bangalore.webm", "CC0", "L. Shyamal", "Bangalore Nandidurga Rd: dense mixed traffic, autos, signal queue"),
+    ("New BEL road 20220726 111234.webm", "samples/india_newbel.webm", "CC0", "L. Shyamal", "Bangalore New BEL Rd: narrow road, pedestrians, two-wheelers"),
+    ("Bangalore 20220814 154815.webm", "samples/india_cvraman.webm", "CC0", "L. Shyamal", "Bangalore C V Raman Rd: arterial, cut-ins"),
+    ("Kadur Chikmagalur road 20210731.webm", "candidates/ka_kadur.webm", "CC0", "L. Shyamal", "Karnataka rural highway, curves"),
+    ("Anamalai road VID20180327151309.webm", "candidates/tn_anamalai.webm", "CC BY-SA 3.0", "T. R. Shankar Raman", "Tamil Nadu narrow rural road, oncoming"),
+    ("IISc drive 2024.webm", "candidates/blr_iisc.webm", "CC0", "L. Shyamal", "Bangalore campus road, two-wheelers"),
+    ("Traffic in Hyderabad.webm", "candidates/hyd_traffic.webm", "CC BY-SA 4.0", "Oleg Yunakov", "Hyderabad signal: dense two-wheelers/autos (rider view)"),
+    ("Stray Cattle in Lutyens Delhi.webm", "candidates/delhi_cattle.webm", "CC BY-SA 3.0", "Fowler&fowler", "Delhi: cattle crossing at a traffic island"),
+    ("Ladakh Road Trip july 2017 - River crossing - Rohtang Pass Manali India Deadliest Road Drive.webm",
+     "candidates/hp_rohtang.webm", "CC BY 3.0", "KSOFTECH", "Himachal unpaved mountain road (12:00-14:30 segment used)"),
+]
+
+
+def download_indian_clips():
+    """Downloads the Indian validation clips (720p transcodes where available) from Wikimedia Commons."""
+    import hashlib, time
+    import urllib.parse
+    import requests
+    headers = {"User-Agent": "PathSense-SIH-prototype (github.com/MalyalaKarthik66/pathsense-prototype)"}
+    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    for name, rel, lic, author, use in INDIAN_CLIPS:
+        out = os.path.join(base_dir, rel)
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        print(f"\n{rel}  <-  commons.wikimedia.org/wiki/File:{name.replace(' ', '_')}\n  {lic}, {author}: {use}")
+        if os.path.exists(out) and os.path.getsize(out) > 1_000_000:
+            print("  already present"); continue
+        fn = name.replace(" ", "_"); h = hashlib.md5(fn.encode()).hexdigest(); q = urllib.parse.quote(fn)
+        urls = [f"https://upload.wikimedia.org/wikipedia/commons/transcoded/{h[0]}/{h[:2]}/{q}/{q}.720p.vp9.webm",
+                f"https://upload.wikimedia.org/wikipedia/commons/{h[0]}/{h[:2]}/{q}"]
+        for url in urls:
+            r = None
+            for _ in range(5):
+                r = requests.get(url, headers=headers, stream=True, timeout=120)
+                if r.status_code != 429:
+                    break
+                time.sleep(30)  # Commons rate limit
+            if r is None or r.status_code != 200:
+                continue
+            with open(out, "wb") as f:
+                for chunk in r.iter_content(1 << 20):
+                    f.write(chunk)
+            print(f"  saved {os.path.getsize(out) / 2**20:.1f} MB")
+            break
+        else:
+            print("  FAILED to download")
+        time.sleep(5)
+    rohtang = os.path.join(base_dir, "candidates", "hp_rohtang.webm")
+    seg = os.path.join(base_dir, "candidates", "hp_rohtang_seg.mp4")
+    if os.path.exists(rohtang) and not os.path.exists(seg):
+        trim_clip(rohtang, seg, start_sec=12 * 60, duration_sec=150)
+
+
 if __name__ == "__main__":
-    prepare_samples()
+    import argparse
+    ap = argparse.ArgumentParser(description="Download PathSense sample / validation clips")
+    ap.add_argument("--indian", action="store_true", help="Also download the CC-licensed Indian validation clips from Wikimedia Commons")
+    ap.add_argument("--indian-only", action="store_true", help="Only download the Indian validation clips")
+    a = ap.parse_args()
+    if not a.indian_only:
+        prepare_samples()
+    if a.indian or a.indian_only:
+        download_indian_clips()

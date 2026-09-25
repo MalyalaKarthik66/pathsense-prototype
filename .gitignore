@@ -47,3 +47,8 @@ data/samples/raw/
 *.log
 *.tmp
 tmp/
+
+# ---- Archives (e.g. zipped outputs for sharing)
+*.zip
+*.7z
+*.tar.gz

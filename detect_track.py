@@ -48,7 +48,7 @@ COLOR_PALETTE = [
 ]
 
 
-def suppress_riders(objects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def suppress_riders(objects: List[Dict[str, Any]], riders_out: Optional[set] = None) -> List[Dict[str, Any]]:
     """
     Removes 'person' detections that are riders of a detected motorcycle/bicycle (very common in Indian traffic:
     YOLO reports both the two-wheeler and its rider). Keeping them would double-count the obstacle and give a
@@ -72,10 +72,36 @@ def suppress_riders(objects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 if ix * iy > 0.5 * p_area and mx1 - 0.1 * mw < pcx < mx2 + 0.1 * mw:
                     rider = True
                     break
+                # "sitting on" test for close / tall rider boxes: centre over the vehicle, box bottom inside the
+                # vehicle's vertical span (not at road level beside it), head above the vehicle top
+                if mx1 - 0.15 * mw < pcx < mx2 + 0.15 * mw and my1 < py2 <= my2 + 0.05 * mh and py1 < my1:
+                    rider = True
+                    break
             if rider:
+                if riders_out is not None and o.get("track_id", -1) >= 0:
+                    riders_out.add(o["track_id"])
                 continue
         kept.append(o)
     return kept
+
+
+def apply_rider_memory(objects: List[Dict[str, Any]], memory: Dict[int, int], frame_no: int,
+                       riders_now: set, max_age: int = 60) -> List[Dict[str, Any]]:
+    """
+    Track-level rider memory: a 'person' track that was recently merged as a rider but whose two-wheeler is not
+    detected in this frame (occluded / below the image border) is kept as a two-wheeler obstacle instead of
+    re-appearing as a pedestrian with the maximum-vulnerability cost halo.
+    """
+    for tid in riders_now:
+        memory[tid] = frame_no
+    for tid in [t for t, f in memory.items() if frame_no - f > max_age]:
+        memory.pop(tid)
+    for o in objects:
+        if o["class_name"] == "person" and o.get("track_id", -1) in memory:
+            o["class_name"] = "motorcycle"
+            o["display_class"] = "rider (bike hidden)"
+            o["rider_memory"] = True
+    return objects
 
 
 def get_color_for_id(track_id: int) -> tuple:
@@ -94,6 +120,8 @@ class DetectorTracker:
         merge_riders: bool = True
     ):
         self.merge_riders = merge_riders
+        self.rider_memory: Dict[int, int] = {}
+        self.frame_no = 0
         self.model_name = model_name
         self.conf_thresh = conf_thresh
         self.iou_thresh = iou_thresh
@@ -162,7 +190,12 @@ class DetectorTracker:
                 "confidence": conf
             })
 
-        return suppress_riders(tracked_objects) if self.merge_riders else tracked_objects
+        self.frame_no += 1
+        if not self.merge_riders:
+            return tracked_objects
+        riders = set()
+        kept = suppress_riders(tracked_objects, riders)
+        return apply_rider_memory(kept, self.rider_memory, self.frame_no, riders)
 
 
 def draw_tracking_overlay(frame: np.ndarray, tracked_objects: List[Dict[str, Any]], fps: float, frame_idx: int) -> np.ndarray:

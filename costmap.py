@@ -37,6 +37,8 @@ CLASS_SAFETY_PROFILES: Dict[str, Dict[str, Any]] = {
     "horse":     {"base_cost": 250, "footprint_radius": 1.6, "collision_radius": 1.0, "inflation_sigma": 2.6, "color": (0, 0, 220)},
     "elephant":  {"base_cost": 255, "footprint_radius": 2.2, "collision_radius": 1.6, "inflation_sigma": 3.0, "color": (0, 0, 220)},
     "car":       {"base_cost": 180, "footprint_radius": 1.8, "collision_radius": 1.1, "inflation_sigma": 2.0, "color": (0, 215, 255)},
+    # auto-rickshaw: ~1.4 m wide three-wheeler (label from autorickshaw.py track-level CLIP refinement)
+    "auto-rickshaw": {"base_cost": 200, "footprint_radius": 1.3, "collision_radius": 0.8, "inflation_sigma": 2.0, "color": (0, 200, 200)},
     "bus":       {"base_cost": 220, "footprint_radius": 2.5, "collision_radius": 1.5, "inflation_sigma": 2.8, "color": (0, 165, 255)},
     "truck":     {"base_cost": 220, "footprint_radius": 2.5, "collision_radius": 1.5, "inflation_sigma": 2.8, "color": (0, 165, 255)},
     "default":   {"base_cost": 180, "footprint_radius": 1.5, "collision_radius": 1.0, "inflation_sigma": 2.0, "color": (0, 255, 255)}

@@ -71,6 +71,7 @@ class DynamicArcPlanner:
         self.prev_chosen_kappa = 0.0
         self.smoothed_steer_deg = 0.0
         self.all_blocked = False  # True when every candidate collides with an obstacle footprint
+        self.lethal_flags: List[bool] = [False] * self.num_candidates
 
     def _generate_arc(self, kappa: float) -> List[Tuple[float, float]]:
         """
@@ -160,6 +161,7 @@ class DynamicArcPlanner:
         # Select candidate with minimum cost. If every candidate collides we still return the least-bad arc,
         # but flag it so the HUD can command braking instead of presenting it as a safe path.
         self.all_blocked = all(lethal_flags)
+        self.lethal_flags = lethal_flags  # per-candidate hard-collision result (HUD path status)
         best_idx = int(np.argmin(path_costs))
         best_kappa = self.candidate_kappas[best_idx]
         self.prev_chosen_kappa = best_kappa
