@@ -110,7 +110,10 @@ class-specific core and Gaussian halo; halos combine with element-wise max.
 | Passenger car | 180 | 1.8 m | 1.1 m | 2.0 m | Standard traffic |
 
 **Hard collision occupancy** uses the collision radius and only for objects that are closing critically (TTC < 2 s,
-box-expansion confirmed) or inside the 2 m emergency gap. Cost ≥ 240 (pedestrian/animal cores) is always lethal.
+box-expansion confirmed) or inside the 2 m emergency gap. Pedestrians and animals always add their collision radius
++ 0.3 m to the hard occupancy (driving through a person is a collision at any speed). Their wide soft halo only ranks
+arcs: since round 6 it no longer blocks an arc by itself, because a halo-lethal rule let people walking beside the road
+(0.5 m outside the corridor, on both sides) force `NO SAFE PATH` through proximity alone (regression M6b).
 Person boxes riding a detected motorcycle/bicycle are merged into the two-wheeler (not treated as pedestrians);
 a merged rider whose bike drops out of detection is kept as a two-wheeler for up to 2 s (track-level rider memory).
 A rider is only recognised once the two-wheeler is visible in the frame.
@@ -119,7 +122,7 @@ A rider is only recognised once the two-wheeler is visible in the frame.
 
 17 constant-curvature candidate arcs over ±15° steering (kinematic bicycle model, wheelbase 2.7 m, 22 m lookahead,
 truncated at 90° heading). Each arc samples the vehicle body (±0.9 m) on the costmap: length-normalised obstacle
-cost + centre bias + smoothness; an arc is **blocked** if the body overlaps hard occupancy or lethal cost. The
+cost + centre bias + smoothness; an arc is **blocked** only if the body physically overlaps hard occupancy. The
 lowest-cost arc is the **candidate trajectory**; steering = atan(L·κ), EMA-smoothed. If every arc is blocked the
 planner reports it (→ `NO SAFE PATH`).
 
@@ -217,21 +220,22 @@ is kept in the events. Cost ≈ 1 ms/frame on average, ~0.3 GB extra VRAM; disab
 ## 11. Dataset / video validation
 
 All clips are processed by the same pipeline (RTX 3050 Laptop GPU, 8.6–9.0 FPS at 720p measured on the current
-code; 0.3× real time). Rows marked *(prev. round)* were not re-rendered in this round (their outputs were removed). Indian clips are from Wikimedia Commons (`python download_samples.py --indian`). "Baseline" is commit
+code; 0.3× real time). Rows marked *(prev. round)* were not re-rendered (their outputs were removed). `delhi_cattle` was re-run in round 6 only to verify the planner change; its output was removed again to respect the curated `outputs/`. BRAKE % baseline is the round-4 value. Indian clips are from Wikimedia Commons (`python download_samples.py --indian`). "Baseline" is commit
 `ecfb166` (before the decision HUD / events / behaviour / auto-rickshaw work).
 
 | Clip | Location | Licence (author) | Duration / FPS | Scenario | BRAKE % (baseline → now) | SLOW DOWN % | GO % | Cut-in / crossing / oncoming cues | Autos |
 |---|---|---|---|---|---|---|---|---|---|
-| `india_bangalore` | Bangalore, Nandidurga Rd | CC0 (L. Shyamal) | 127 s / 30 | dense mixed traffic, autos, signal queue | 5.1 → 7.2 | 86.3 | 6.5 | 2 / 1 / 4 | 12 |
-| `india_newbel` | Bangalore, New BEL Rd | CC0 (L. Shyamal) | 96 s / 30 | narrow road, pedestrians, oncoming | 13.1 → 14.5 | 38.6 | 46.8 | 1 / 0 / 5 | 1 |
-| `india_cvraman` | Bangalore, C V Raman Rd | CC0 (L. Shyamal) | 48 s / 30 | arterial, cut-ins | 4.1 → 4.1 | 39.9 | 56.0 | 0 / 0 / 0 | 1 |
+| `india_bangalore` | Bangalore, Nandidurga Rd | CC0 (L. Shyamal) | 127 s / 30 | dense mixed traffic, autos, signal queue | 5.1 → 6.4 | 87.1 | 6.5 | 2 / 1 / 4 | 12 |
+| `india_newbel` | Bangalore, New BEL Rd | CC0 (L. Shyamal) | 96 s / 30 | narrow road, pedestrians, oncoming | 13.1 → 9.1 | 43.2 | 47.7 | 1 / 0 / 5 | 1 |
+| `india_cvraman` | Bangalore, C V Raman Rd | CC0 (L. Shyamal) | 48 s / 30 | arterial, cut-ins | 4.1 → 2.1 | 41.9 | 56.0 | 0 / 0 / 0 | 1 |
 | `ka_kadur` | Kadur–Chikmagalur, Karnataka | CC0 (L. Shyamal) | 48 s / 29.6 | rural highway, curves | 0 → 0 | 0 | 100.0 | 0 / 0 / 0 | 0 |
 | `tn_anamalai` (prev. round) | Anamalai, Tamil Nadu | CC BY-SA 3.0 (T. R. Shankar Raman) | 25 s / 25 | narrow rural road, oncoming | 8.4 → 8.4 | 29.5 | 62.1 | 2 / 2 / 0 | 0 |
-| `blr_iisc` | IISc campus, Bangalore | CC0 (L. Shyamal) | 86 s / 30 | pedestrians walking on the carriageway, two-wheelers | 23.5 → 22.7 | 50.6 | 26.7 | 0 / 0 / 0 | 0 |
-| `delhi_cattle` | Lutyens Delhi | CC BY-SA 3.0 (Fowler&fowler) | 45 s / 30* | cattle crossing at a traffic island (angled in-car camera, near stop) | 65.1 → 65.8 | 30.5 | 3.7 | 9 / 7 / 0 | 0 |
+| `blr_iisc` | IISc campus, Bangalore | CC0 (L. Shyamal) | 86 s / 30 | pedestrians walking on the carriageway, two-wheelers | 23.5 → 18.4 | 54.9 | 26.7 | 0 / 0 / 0 | 0 |
+| `delhi_cattle` (verified; output removed) | Lutyens Delhi | CC BY-SA 3.0 (Fowler&fowler) | 45 s / 30* | cattle crossing at a traffic island (angled in-car camera, near stop) | 65.1 → 53.5 | 42.6 | 3.9 | 9 / 7 / 0 | 0 |
+| `frederiksted_pier` | Frederiksted pier, St. Croix (left-hand traffic) | CC BY 3.0 (John Edwards) | 45 s / 30 (480p) | pedestrians walking beside and crossing in front of a slow taxi — **in-vehicle camera, dashboard visible** | new → 0.9 | 59.6 | 39.5 | 1 / 11 / 0 | 0 |
 | `hyd_traffic` (prev. round) | Hyderabad | CC BY-SA 4.0 (Oleg Yunakov) | 56 s / 60 | dense two-wheelers/autos at a signal — **filmed from inside an auto (robustness only)** | 39.3 → 34.9 | 55.7 | 9.4 | 8 / 4 / 0 | 1 |
 | `hp_rohtang_seg` (prev. round) | Rohtang Pass, Himachal | CC BY 3.0 (KSOFTECH) | 150 s / 30 (360p) | unpaved mountain road, queue — **motorcycle-mounted camera (robustness only)** | 39.8 → 38.1 | 49.6 | 12.4 | 5 / 8 / 5 | 0 |
-| `sample_1`, `sample_2` | US highway (Udacity) | project video | 12 s + 10 s / 25 | highway regression | 0 → 0 | 0 | 100 | 0 / 0 / 0 | 0 |
+| `sample_1`, `sample_2` (outputs removed) | US highway (Udacity) | project video | 12 s + 10 s / 25 | highway regression | 0 → 0 | 0 | 100 | 0 / 0 / 0 | 0 |
 
 \* container reports 600 FPS; the pipeline estimates 29.98 FPS from frame timestamps.
 
@@ -240,6 +244,30 @@ object are listed in `outputs/<clip>_events.json`. Observed false / borderline B
 the edge of narrow roads (conservative pedestrian halo), a scooter rider whose scooter is below the image border (seen
 as a pedestrian until the scooter appears), BRAKE holds right after a threat passes. Clips from two-wheeler / in-auto
 cameras violate the car-mounted camera model; their numbers are reported for robustness, not accuracy.
+
+### Round 6 before → after (planner no longer blocks arcs by proximity halos)
+
+| Clip | BRAKE % | of which NO SAFE PATH % | BRAKE episodes |
+|---|---|---|---|
+| india_bangalore | 7.2 → 6.4 | 0.4 → 0 | 8 → 7 |
+| india_newbel | 14.5 → 9.1 | 3.7 → 0.3 | 8 → 7 |
+| india_cvraman | 4.1 → 2.1 | 0 → 0 | 2 → 1 |
+| blr_iisc | 22.7 → 18.4 | 8.0 → 3.7 | 12 → 12 |
+| delhi_cattle | 65.8 → 53.5 | 55.8 → 42.3 | — → 8 |
+| ka_kadur | 0 → 0 | 0 → 0 | 0 → 0 |
+
+Oncoming traffic on its own side still does not trigger BRAKE on the Bangalore clip; cattle and pedestrians that are
+actually in the path still produce BRAKE / NO SAFE PATH.
+
+### Crossing-pedestrian clip (`frederiksted_pier`)
+
+Source: [Wikimedia Commons — *Driver view taxi ride into Frederiksted, St. Croix, U.S. Virgin Islands 3-6-18*](https://commons.wikimedia.org/wiki/File:Driver_view_taxi_ride_into_Frederiksted,_St._Croix,_U.S._Virgin_Islands_3-6-18.webm),
+John Edwards, **CC BY 3.0**. Derivative: 480p Commons transcode, excerpt 161–206 s (45 s), every second frame
+(29.97 FPS), saved as `data/candidates/frederiksted_pier.mp4` (not committed). St. Croix drives on the left, like India.
+Result: pedestrians walking beside the pier road → GO STRAIGHT; people crossing 13–22 m ahead → SLOW DOWN
+("Pedestrian crossing into path"); a pedestrian stepping in at 3.8 m → BRAKE. Because the taxi is slow and most
+crossings are 10 m+ ahead, the clip shows SLOW DOWN far more than a sustained BRAKE (0.9 % BRAKE). Limitation: the
+camera is inside the vehicle with the dashboard in view (default camera geometry).
 
 ## 12. Known limitations
 
@@ -293,12 +321,15 @@ pedestrian/cow in path, pedestrian and cow crossing, motorcycle and car cut-in, 
 in its own lane, adjacent harmless vehicles, frame-edge vehicle, fully blocked road, both sides blocked, queue at a
 signal, recovery after BRAKE, no-flicker hysteresis, rider suppression, auto-rickshaw corridor geometry, and a
 real-image auto-rickshaw check (skipped if the Bangalore clip is not downloaded).
-Directional tests DIR1–DIR9 (harmless / drifting / entering oncoming vehicle, shoulder / close / crossing pedestrian,
+A path-threat test matrix M1–M14 (+M6b) checks: oncoming vehicle safe / drifting / entering / blocking; left- and
+right-footpath pedestrians walking, close, approaching, crossing; a pedestrian occupying the path; BRAKE held while a
+crossing pedestrian stays in the path; recovery through hysteresis without re-BRAKE; pedestrians on both footpaths
+never forcing BRAKE. Directional tests DIR1–DIR10 (harmless / drifting / entering oncoming vehicle, shoulder / close / crossing pedestrian,
 motorcycle overtaking, real cut-in, wrong-way vehicle) and accident tests ACC1–ACC12 (normal driving, hard braking,
 queue, brief contact, confirmed collision, latching, single-frame spike, reset, frame-edge truncation, congestion
 creep-to-stop, near-field reflection, ego rear-end) run in the same suite.
 
-## 15. Web app (demo, upload, events, live camera, emergency simulation)
+## 15. Web app (landing page, demo + replay, live camera, emergency simulation)
 
 ```powershell
 python app.py                       # desktop: http://localhost:8000
@@ -307,12 +338,18 @@ python app.py --lan --https         # phone on the same Wi-Fi: https://<PC-LAN-I
 
 `app.py` (Flask) serves `web/` and calls the same pipeline — nothing is re-implemented in the browser.
 
+The site opens on a **landing page** (`#home`: product statement, an abstract generated canvas visual of a road with
+road users and the ego path — no prototype imagery — and short "how it works" sections). **Try PathSense** goes
+straight into the app, whose navigation is only **Demo · Live · Emergency** (`#demo`, `#live`, `#emergency`).
+
 - **Demo** – processed drives from `outputs/` (only videos that currently exist), a player synced with per-frame
   telemetry (`<name>_frames.json`): decision, reason, path status, speed, steering, nearest threat, distance, TTC;
   a clickable decision timeline; **Upload** runs `main.run_pipeline` on the GPU with live progress and plays the result
   (outputs go to `outputs/web/`). Videos are written as H.264 (`avc1`) so browsers can play them; older `mp4v`
   renders are flagged.
-- **Events** – decision / behaviour / accident events with the "why did it brake here?" card and replay in the player.
+- **Replay** (inside Demo) – key moments of the selected drive (BRAKE / SLOW DOWN onsets, cut-ins, crossings,
+  oncoming, accident alerts; filters Key moments / Brake / Road users / All). Selecting one shows the decision, reason,
+  object, distance, TTC, behaviour, path status and steering, and **Replay** plays it from 2 s before.
 - **Live** – the page captures the camera (`getUserMedia`), sends ≤ 640 px JPEG frames to the PC one at a time
   (self-throttling) and draws the returned decision, boxes, TTC, path and a mini BEV. FPS and latency shown are
   measured. Browsers only allow the camera on `https://` or `localhost`, hence `--https` for phones (accept the
@@ -321,7 +358,8 @@ python app.py --lan --https         # phone on the same Wi-Fi: https://<PC-LAN-I
 - **Emergency** – contact settings stored locally in `config/emergency.json` (gitignored, editable, deletable),
   browser geolocation or a clearly labelled DEMO LOCATION (never invented), nearby hospitals from OpenStreetMap
   (Overpass API), and the simulated workflow panel with **Review event** / **Confirm emergency action**.
-- **System** – GPU / models / LAN addresses and a button that runs `scenario_tests.py`.
+- The former Events and System pages were removed from the visitor-facing UI; their APIs remain
+  (`/api/demos/<name>/events`, `/api/system`, `/api/system/run-tests`) for tooling and the presentation build.
 - Dark / light theme, responsive from phone to desktop.
 
 ## 16. Accident detection and emergency response (DEMO / SIMULATION)
@@ -358,7 +396,10 @@ Across the six Indian validation drives the detector produced no false accident 
 
 ## 17. SIH presentation
 
-`PathSense_SIH_Presentation.pptx` (17 slides) is generated by `python presentation/build_presentation.py`; every
-number is read from `outputs/` at build time. Web captures: `node presentation/capture_web.mjs <dir>` (headless Edge,
-server running); icons: `presentation/make_icons.js` (react-icons, MIT).
+`PathSense_SIH_Presentation.pptx` (+ `.pdf` for the portal) follows the **official SIH 2026 idea-presentation
+template**: six slides (Title page · Idea / Proposed solution · Technical approach · Feasibility and viability · Impact
+and benefits · Research and references), with the template's pointers kept verbatim, original vector diagrams and no
+prototype screenshots. Build: `python presentation/build_presentation.py <path to SIH2026-IDEA-Presentation-Format.pptx>`
+(default: `~/Downloads`); every measured number is read from `outputs/` at build time. Team name / team ID are left as
+the template's fields. Icons: `presentation/make_icons.js` (react-icons, MIT).
 

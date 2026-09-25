@@ -45,6 +45,9 @@ CLASS_SAFETY_PROFILES: Dict[str, Dict[str, Any]] = {
 }
 
 
+VRU_CLASSES = {"person", "bicycle", "cat", "dog", "sheep", "cow", "horse", "elephant"}
+
+
 class BEVCostmap:
     def __init__(
         self,
@@ -55,9 +58,11 @@ class BEVCostmap:
         img_height: int = 720,
         fov_deg: float = 70.0,
         near_field_m: float = 2.0,  # physical emergency gap; keep equal to DecisionState.min_gap_m
-        hard_hazard_levels: Tuple[str, ...] = ("CRITICAL",)
+        hard_hazard_levels: Tuple[str, ...] = ("CRITICAL",),
+        vru_hard_margin_m: float = 0.3  # pedestrians/animals: physical footprint + this margin is always a hard obstacle
     ):
         self.near_field_m = near_field_m
+        self.vru_hard_margin = vru_hard_margin_m
         self.hard_hazard_levels = hard_hazard_levels
         self.min_x, self.max_x = range_x
         self.min_y, self.max_y = range_y
@@ -169,6 +174,11 @@ class BEVCostmap:
             # is not turned into a wall that forces swerving or a spurious NO SAFE PATH.
             if obj.get("hazard_level", "SAFE") in self.hard_hazard_levels or y_m <= self.near_field_m:
                 self.occupancy |= dist <= profile.get("collision_radius", footprint_r)
+            # Pedestrians / animals: driving through their body is a collision at any speed, so their physical
+            # footprint (+ margin) is always hard. Their wide soft halo only biases the planner - it no longer blocks
+            # an arc by itself, so people walking beside the road cannot force NO SAFE PATH through proximity alone.
+            if cname in VRU_CLASSES:
+                self.occupancy |= dist <= profile.get("collision_radius", footprint_r) + self.vru_hard_margin
 
         costmap_uint8 = np.clip(cost_grid, 0, 255).astype(np.uint8)
         return costmap_uint8, projected

@@ -82,7 +82,8 @@ def check(name: str, actors: List[Actor], seconds: float, final: Set[str], max_l
           must_reach: int = GO, max_abs_steer: Optional[float] = None, max_transitions: Optional[int] = None,
           final_level: Optional[Set[int]] = None, ego_speed: Optional[float] = None,
           expect_behavior: Optional[str] = None, forbid_behaviors: Set[str] = frozenset(),
-          expect_title: Optional[str] = None) -> bool:
+          expect_title: Optional[str] = None, persist_brake: bool = False, no_rebrake: bool = False,
+          forbid_labels: Set[str] = frozenset()) -> bool:
     trace, dec, behaviors = run(actors, seconds, ego_speed=ego_speed)
     levels = [t[0] for t in trace]
     label, reason = trace[-1][1], trace[-1][3]
@@ -109,6 +110,15 @@ def check(name: str, actors: List[Actor], seconds: float, final: Set[str], max_l
     # HUD invariant: NO SAFE PATH is only ever shown together with a BLOCKED path status
     if any(tr[1] == "NO SAFE PATH - BRAKE" and tr[4].get("path_status") != "BLOCKED" for tr in trace):
         problems.append("NO SAFE PATH shown without PATH BLOCKED")
+    if persist_brake and BRAKE in levels and min(levels[levels.index(BRAKE):]) < BRAKE:
+        problems.append("BRAKE not held while the conflict remains")
+    if no_rebrake and BRAKE in levels:
+        released = next((k for k in range(levels.index(BRAKE), len(levels)) if levels[k] < BRAKE), None)
+        if released is not None and BRAKE in levels[released:]:
+            problems.append("BRAKE re-entered after release (flicker)")
+    shown = {t[1] for t in trace} & set(forbid_labels)
+    if shown:
+        problems.append(f"forbidden label(s) shown: {sorted(shown)}")
     # BRAKE must never drop straight to GO
     for a, b in zip(levels, levels[1:]):
         if a == BRAKE and b == GO:
@@ -271,9 +281,12 @@ def main() -> int:
                          {"BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=BRAKE))
     results.append(check("9  obstacle outside corridor (person on footpath x=-4.5)", [(1, "person", const(-4.5), closing(12, 3.0, stop=3.0))], 4,
                          GO_LABELS | {"SLOW DOWN"}, max_level=CAUTION))
+    # (until round 6 this ran on after the car had stopped at 4 m and still expected BRAKE - which only held because the
+    #  two pedestrians' cost halos, 0.7 m outside the corridor, blocked every arc by proximity; M6b now forbids that.
+    #  The scenario ends while the car is still closing, which is what the title describes.)
     results.append(check("10 both lateral paths blocked + closing car ahead",
                          [(1, "person", const(-2.4), const(6.0)), (2, "person", const(2.4), const(6.0)),
-                          (3, "car", const(0.0), closing(10, 3.0, stop=4.0))], 3,
+                          (3, "car", const(0.0), closing(10, 3.0, stop=2.5))], 2.4,
                          {"BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=BRAKE))
     # --- cases A-G
     results.append(check("A  vehicle 4 m ahead, rapidly approaching (5 m/s)", [(1, "car", const(0.0), closing(6, 5.0, stop=1.5))], 1.2,
@@ -388,6 +401,54 @@ def main() -> int:
     results.append(check("DIR10 oncoming truck passing on its side, depth-induced x drift (Bangalore)",
                          [(1, "truck", lambda t: 2.1 + 0.19 * (20 - 8.0 * t), lambda t: (20 - 8.0 * t) if t < 2.2 else None)],
                          2.8, {"GO STRAIGHT", "STEER LEFT", "STEER RIGHT", "SLOW DOWN"}, max_level=CAUTION, ego_speed=3.0))
+    # --- path-threat test matrix (left-hand traffic; left footpath x < 0, oncoming / right footpath x > 0).
+    #     Pedestrians are static or walking; ego drives at the given speed, so y closes at ego - walking speed.
+    NOT_BRAKE = {"BRAKE", "NO SAFE PATH - BRAKE"}
+    results.append(check("M1  oncoming vehicle safely in the opposite lane",
+                         [(1, "car", const(3.6), lambda t: (36 - 14.0 * t) if t < 2.4 else None)], 2.8,
+                         GO_LABELS, max_level=GO, ego_speed=6.0))
+    results.append(check("M2  oncoming vehicle slightly drifting toward ego",
+                         [(1, "car", lambda t: 4.4 - 0.55 * t, closing(34, 9.0, stop=12.0))], 2.8,
+                         {"SLOW DOWN"}, max_level=CAUTION, must_reach=CAUTION, ego_speed=5.0))
+    results.append(check("M3  oncoming vehicle entering ego corridor",
+                         [(1, "car", lambda t: max(0.6, 3.6 - 1.8 * t), closing(26, 13.0, stop=3.0))], 1.8,
+                         NOT_BRAKE, must_reach=BRAKE, ego_speed=6.0))
+    results.append(check("M4  oncoming vehicle directly blocking ego path",
+                         [(1, "car", const(0.4), closing(22, 11.0, stop=3.0))], 2.0,
+                         NOT_BRAKE, must_reach=BRAKE, ego_speed=5.0))
+    results.append(check("M5  left-footpath pedestrian walking normally",
+                         [(1, "person", const(-3.4), closing(18, 3.6, stop=1.0))], 4.5,
+                         GO_LABELS, max_level=GO, ego_speed=5.0))
+    results.append(check("M6  left pedestrian close but outside corridor (0.5 m)",
+                         [(1, "person", const(-2.2), closing(16, 3.6, stop=1.0))], 4.0,
+                         GO_LABELS | {"SLOW DOWN"}, max_level=CAUTION, ego_speed=5.0, forbid_labels=NOT_BRAKE))
+    results.append(check("M6b pedestrians on both footpaths, 0.5 m outside corridor",
+                         [(1, "person", const(-2.2), closing(16, 3.6, stop=1.0)), (2, "person", const(2.5), closing(14, 3.6, stop=1.0))],
+                         4.0, GO_LABELS | {"SLOW DOWN"}, max_level=CAUTION, ego_speed=5.0, forbid_labels=NOT_BRAKE))
+    results.append(check("M7  left pedestrian approaching ego corridor",
+                         [(1, "person", lambda t: -3.3 + 0.4 * t, closing(16, 3.0, stop=9.0))], 3.0,
+                         {"SLOW DOWN"}, max_level=CAUTION, must_reach=CAUTION, ego_speed=3.0))
+    results.append(check("M8  left pedestrian crossing ego path",
+                         [(1, "person", lambda t: -3.0 + 1.4 * t, closing(12, 3.0, stop=5.0))], 3.0,
+                         NOT_BRAKE, must_reach=BRAKE, ego_speed=3.0))
+    results.append(check("M9  right-footpath pedestrian walking normally",
+                         [(1, "person", const(3.4), closing(18, 6.4, stop=1.0))], 3.0,
+                         GO_LABELS, max_level=GO, ego_speed=5.0))
+    results.append(check("M10 right pedestrian approaching ego corridor",
+                         [(1, "person", lambda t: 3.3 - 0.4 * t, closing(16, 3.0, stop=9.0))], 3.0,
+                         {"SLOW DOWN"}, max_level=CAUTION, must_reach=CAUTION, ego_speed=3.0))
+    results.append(check("M11 right pedestrian crossing ego path",
+                         [(1, "person", lambda t: 3.0 - 1.4 * t, closing(12, 3.0, stop=5.0))], 3.0,
+                         NOT_BRAKE, must_reach=BRAKE, ego_speed=3.0))
+    results.append(check("M12 pedestrian directly occupying ego path",
+                         [(1, "person", const(0.2), closing(12, 4.0, stop=4.5))], 3.0,
+                         NOT_BRAKE, must_reach=BRAKE, ego_speed=4.0))
+    results.append(check("M13 crossing pedestrian stays in path: BRAKE persists",
+                         [(1, "person", lambda t: min(0.0, -3.0 + 1.4 * t), closing(11, 2.5, stop=4.5))], 6.0,
+                         NOT_BRAKE, must_reach=BRAKE, ego_speed=2.5, persist_brake=True))
+    results.append(check("M14 crossing pedestrian clears path: hysteresis recovery",
+                         [(1, "person", lambda t: -3.0 + 1.5 * t, closing(9, 2.0, stop=5.5))], 8.0,
+                         GO_LABELS, must_reach=BRAKE, ego_speed=2.0, no_rebrake=True, final_level={GO}))
     # --- temporal behaviour
     results.append(check("R  recovery: closing car then disappears",
                          [(1, "car", const(0.0), lambda t: (8 - 6 * t) if t < 0.9 else None)], 5,

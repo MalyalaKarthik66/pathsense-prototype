@@ -20,7 +20,7 @@ const icons = {
   crash: md.MdCarCrash, flag: md.MdFlag, upload: md.MdCloudUpload, event: md.MdEventNote, tune: md.MdTune,
   merge: md.MdMergeType, block: md.MdBlock, pothole: md.MdReport, rule: md.MdRule, rocket: md.MdRocketLaunch,
 };
-const colors = { w: "#F3F5F7", t: "#2DD4BF", k: "#0B0E11", r: "#EF4444", a: "#F59E0B", g: "#22C55E", s: "#38BDF8", m: "#A3AFBB" };
+const colors = { n: "#1F2A44", b: "#0070C0", e: "#0F9E8E", r: "#DC2626", a: "#D97706", g: "#16A34A", w: "#FFFFFF", m: "#64748B" };
 
 (async () => {
   for (const [name, C] of Object.entries(icons)) {

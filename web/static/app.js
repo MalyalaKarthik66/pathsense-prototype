@@ -28,26 +28,48 @@ const colorOf = (label) => cssVar({ GO: "--go", SLOW: "--slow", BRAKE: "--brake"
 /* ------------------------------------------------------------------ theme */
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
-  $("#themeBtn use").setAttribute("href", t === "dark" ? "#i-sun" : "#i-moon");
-  $("#themeBtn").setAttribute("aria-label", t === "dark" ? "Switch to light theme" : "Switch to dark theme");
+  $$("[data-theme-toggle]").forEach((b) => {
+    b.querySelector("use").setAttribute("href", t === "dark" ? "#i-sun" : "#i-moon");
+    b.setAttribute("aria-label", t === "dark" ? "Switch to light theme" : "Switch to dark theme");
+  });
   $('meta[name="theme-color"]').content = t === "dark" ? "#0b0e11" : "#f5f7fa";
   try { localStorage.setItem("ps-theme", t); } catch (e) { /* storage unavailable */ }
   if (state.demo) drawTimeline();
 }
-$("#themeBtn").onclick = () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+$$("[data-theme-toggle]").forEach((b) => (b.onclick = () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark")));
 
-/* ------------------------------------------------------------------ tabs */
+/* ------------------------------------------------------------------ routing: #home (landing) | #demo #live #emergency (app) */
+const VIEWS = ["demo", "live", "emergency"];
 function showView(v) {
+  if (!VIEWS.includes(v)) v = "demo";
+  $("#home").hidden = true;
+  $("#app").hidden = false;
+  hero.stop();
   $$(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === v)));
   $$(".view").forEach((s) => s.classList.toggle("active", s.id === `view-${v}`));
-  if (v === "system") loadSystem();
   if (v === "emergency") loadContact();
-  if (v === "events") renderEvents();
-  history.replaceState(null, "", `#${v}`);
+  if (location.hash !== `#${v}`) history.pushState(null, "", `#${v}`);
+  document.title = `PathSense · ${v[0].toUpperCase()}${v.slice(1)}`;
+}
+function showHome() {
+  $("#app").hidden = true;
+  $("#home").hidden = false;
+  document.title = "PathSense";
+  if (location.hash && location.hash !== "#home") history.pushState(null, "", "#home");
+  hero.start();
+}
+function route() {
+  const h = location.hash.slice(1);
+  if (VIEWS.includes(h)) { showView(h); window.scrollTo(0, 0); } else showHome();
 }
 $$(".tab").forEach((t) => (t.onclick = () => showView(t.dataset.view)));
-const VIEWS = ["demo", "live", "events", "emergency", "system"];
-window.addEventListener("hashchange", () => { const v = location.hash.slice(1); if (VIEWS.includes(v)) showView(v); });
+window.addEventListener("popstate", route);
+window.addEventListener("hashchange", route);
+// in-page anchors on the landing page scroll smoothly instead of changing the route
+$$("[data-scroll]").forEach((a) => (a.onclick = (e) => {
+  e.preventDefault();
+  $(a.getAttribute("href")).scrollIntoView({ behavior: "smooth", block: "start" });
+}));
 
 /* ------------------------------------------------------------------ demo player */
 const state = { demos: [], demo: null, events: null, frames: null, fps: 25, evFilter: "all", evSel: null };
@@ -82,11 +104,11 @@ async function selectDemo(name, play) {
   const d = state.demos.find((x) => x.name === name);
   if (!d) return;
   state.demo = d; state.events = null; state.frames = null; state.evSel = null;
+  $("#momentCard").innerHTML = '<p class="muted" style="margin:0">Select a moment to replay it.</p>';
   $$(".demo-card").forEach((b) => b.setAttribute("aria-current", String(b.dataset.name === name)));
   $("#playerEmpty").hidden = true;
   video.src = d.video_url;
   if (play) video.play().catch(() => {});
-  $("#evTitle").textContent = `Events — ${d.title}`;
   const enc = encodeURIComponent(name).replace(/%2F/g, "/");
   const [ev, fr] = await Promise.all([
     d.has_events ? api(`/api/demos/${enc}/events`).catch(() => null) : null,
@@ -173,63 +195,98 @@ video.addEventListener("error", () => {
 });
 (function tick() { if (!video.paused) updatePanel(); requestAnimationFrame(tick); })();
 
-/* ------------------------------------------------------------------ events view */
+/* ------------------------------------------------------------------ replay: key moments of the selected drive */
+state.evFilter = "key";
 $$("#evFilters .filter").forEach((b) => (b.onclick = () => {
   state.evFilter = b.dataset.f;
   $$("#evFilters .filter").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
   renderEvents();
 }));
 
+const KEY_BEHAVIOURS = new Set(["CUT-IN", "CROSSING", "ONCOMING", "SLOW LEAD"]);
+const niceBehaviour = (b) => ({ "CUT-IN": "Cut-in", CROSSING: "Crossing", ONCOMING: "Oncoming", "SLOW LEAD": "Slow vehicle ahead", "SIDE PASS": "Passing alongside" }[b] || b);
+const niceClass = (c) => (c === "person" ? "pedestrian" : c || "object");
+
 function evSummary(e) {
-  if (e.type === "decision") return { what: e.decision, why: e.reason || e.title, label: e.decision };
+  if (e.type === "decision") return { what: e.decision, why: e.title || e.reason, label: e.decision };
   if (e.type === "behavior") {
     const o = e.object || {};
-    return { what: e.behavior, why: `${o.class_name || "object"} #${o.track_id} at ${o.distance_m ?? "?"} m`, label: "STEER" };
+    return { what: niceBehaviour(e.behavior), why: `${niceClass(o.class_name)} at ${o.distance_m ?? "?"} m`, label: "STEER" };
   }
   const confirmed = e.accident_state === "CONFIRMED";
-  return { what: confirmed ? "ACCIDENT DETECTED (confirmed)" : "Collision cue — unconfirmed",
-    why: `confidence ${Math.round(100 * (e.confidence || 0))}% · ${(e.cues || []).join(", ")}${confirmed ? " · simulated emergency workflow" : ""}`,
+  return { what: confirmed ? "Accident detected" : "Possible collision (unconfirmed)",
+    why: `confidence ${Math.round(100 * (e.confidence || 0))}%${confirmed ? " · simulated emergency workflow" : ""}`,
     label: confirmed ? "BRAKE" : "SLOW" };
+}
+
+function momentFilter(e) {
+  const f = state.evFilter;
+  if (f === "all") return true;
+  if (f === "brake") return e.type === "decision" && e.state === "BRAKE";
+  if (f === "behavior") return e.type === "behavior";
+  // key moments: every BRAKE / SLOW DOWN onset, meaningful road-user behaviour, accident alerts
+  if (e.type === "decision") return e.state !== "GO";
+  if (e.type === "behavior") return KEY_BEHAVIOURS.has(e.behavior);
+  return true;
 }
 
 function renderEvents() {
   const ul = $("#eventList");
-  const evs = (state.events && state.events.events) || [];
-  const f = state.evFilter;
-  const list = evs.filter((e) => f === "all" || (f === "brake" ? e.type === "decision" && e.state === "BRAKE" : e.type === f));
-  if (!state.demo) { ul.innerHTML = '<li class="callout">Select a processed drive on the Demo tab.</li>'; return; }
-  if (!list.length) { ul.innerHTML = '<li class="callout">No events for this filter.</li>'; return; }
+  if (!state.demo) { ul.innerHTML = '<li class="muted" style="padding:12px 14px">Select a drive below.</li>'; return; }
+  if (!state.events) { ul.innerHTML = '<li class="muted" style="padding:12px 14px">No replay data for this drive.</li>'; return; }
+  const list = state.events.events.filter(momentFilter);
+  if (!list.length) { ul.innerHTML = '<li class="muted" style="padding:12px 14px">Nothing in this category for this drive.</li>'; return; }
   ul.innerHTML = list.map((e) => {
-    const s = evSummary(e);
-    return `<li class="event" data-id="${e.id}" tabindex="0" aria-current="${state.evSel === e.id}">
-      <span class="time">${mmss(e.time_s)}.${String(Math.round((e.time_s % 1) * 10)).slice(0, 1)}</span>
-      <div><div class="what st-${styleKey(s.label)}">${esc(s.what)}</div><div class="why">${esc(s.why)}</div></div>
-      <span class="chip">#${e.id} · ${esc(e.type)}</span></li>`;
+    const sm = evSummary(e);
+    const dur = e.duration_s ? `${e.duration_s.toFixed(1)} s` : "";
+    return `<li class="moment" data-id="${e.id}" tabindex="0" role="button" aria-current="${state.evSel === e.id}">
+      <span class="time">${mmss(e.time_s)}.${String(Math.floor((e.time_s % 1) * 10))}</span>
+      <span class="mdot st-${styleKey(sm.label)}" aria-hidden="true"></span>
+      <div><div class="what">${esc(sm.what)}</div><div class="why">${esc(sm.why)}</div></div>
+      <span class="dur">${dur}</span></li>`;
   }).join("");
-  $$(".event", ul).forEach((li) => {
+  $$(".moment", ul).forEach((li) => {
     li.onclick = () => selectEvent(+li.dataset.id);
-    li.onkeydown = (k) => { if (k.key === "Enter") selectEvent(+li.dataset.id); };
+    li.onkeydown = (k) => { if (k.key === "Enter" || k.key === " ") { k.preventDefault(); selectEvent(+li.dataset.id); } };
   });
 }
 
-async function selectEvent(id) {
-  state.evSel = id;
-  $$(".event").forEach((li) => li.setAttribute("aria-current", String(+li.dataset.id === id)));
-  const enc = encodeURIComponent(state.demo.name).replace(/%2F/g, "/");
-  try {
-    const r = await api(`/api/demos/${enc}/events/${id}/card`);
-    $("#evCard").textContent = r.card;
-  } catch (e) { $("#evCard").textContent = e.message; }
-  $("#evPlay").disabled = false;
-}
-$("#evPlay").onclick = () => {
-  const e = state.events.events.find((x) => x.id === state.evSel);
+function selectEvent(id, play = false) {
+  const e = state.events && state.events.events.find((x) => x.id === id);
   if (!e) return;
-  showView("demo");
-  video.currentTime = Math.max(0, e.time_s - 2);
+  state.evSel = id;
+  $$(".moment").forEach((li) => li.setAttribute("aria-current", String(+li.dataset.id === id)));
+  const sm = evSummary(e);
+  const o = e.object || {};
+  const row = (k, v) => (v === null || v === undefined || v === "" ? "" : `<dt>${k}</dt><dd>${v}</dd>`);
+  const rows = [
+    row("Object", o.class_name ? `${esc(niceClass(o.class_name))} #${o.track_id}` : null),
+    row("Distance", o.distance_m !== undefined && o.distance_m !== null ? `${o.distance_m} m` : null),
+    row("TTC", o.ttc_s !== undefined && o.ttc_s !== null ? `${o.ttc_s} s` : null),
+    row("Behaviour", e.type === "behavior" ? esc(niceBehaviour(e.behavior)) : (o.behavior ? esc(niceBehaviour(o.behavior)) : null)),
+    row("Path", e.path_status ? `${esc(e.path_status)}${e.n_arcs ? ` · ${e.n_arcs - (e.blocked_arcs || 0)}/${e.n_arcs} paths free` : ""}` : null),
+    row("Steering", e.steering_deg !== undefined && e.steering_deg !== null ? `${e.steering_deg}°` : null),
+    row("Ego speed", e.ego_speed_kmh !== undefined && e.ego_speed_kmh !== null ? `${e.ego_speed_kmh} km/h (est.)` : null),
+    row("Held for", e.duration_s ? `${e.duration_s} s` : null),
+  ].join("");
+  $("#momentCard").innerHTML = `
+    <div class="row" style="justify-content:space-between"><span class="eyebrow">At ${mmss(e.time_s)}</span>
+      ${e.type === "accident" ? '<span class="chip">simulation</span>' : ""}</div>
+    <div class="mc-label st-${styleKey(sm.label)}">${esc(sm.what)}</div>
+    <div class="mc-title">${esc(e.type === "decision" ? e.title : sm.why)}</div>
+    ${e.type === "decision" && e.reason ? `<div class="muted" style="font-size:13px;margin-top:6px">${esc(e.reason)}</div>` : ""}
+    <dl class="mc-rows">${rows}</dl>
+    <div class="row" style="margin-top:18px"><button class="btn btn-primary" id="evPlay"><svg><use href="#i-play"/></svg>Replay</button></div>`;
+  $("#evPlay").onclick = () => replayAt(e.time_s);
+  video.pause();
+  video.currentTime = Math.max(0, e.time_s - 0.2);
+  if (play) replayAt(e.time_s);
+}
+function replayAt(t) {
+  video.currentTime = Math.max(0, t - 2);
   video.play().catch(() => {});
-  window.scrollTo({ top: 0, behavior: "smooth" });
-};
+  $("#player").scrollIntoView({ behavior: "smooth", block: "center" });
+}
 
 /* ------------------------------------------------------------------ upload */
 const upModal = $("#uploadModal");
@@ -509,7 +566,9 @@ async function triggerEmergency(confidence = 0.9, source = "demo trigger (button
   $("#emReview").onclick = () => {
     m.classList.remove("open");
     const acc = state.events && state.events.events.find((e) => e.type === "accident" && e.accident_state === "CONFIRMED");
-    if (acc) { showView("events"); state.evFilter = "accident"; renderEvents(); selectEvent(acc.id); }
+    showView("demo");
+    if (acc) { state.evFilter = "all"; renderEvents(); selectEvent(acc.id); }
+    $("#replay").scrollIntoView({ behavior: "smooth" });
   };
   $("#emConfirm").onclick = async () => {
     const x = await api("/api/emergency/confirm", { method: "POST" });
@@ -519,34 +578,163 @@ async function triggerEmergency(confidence = 0.9, source = "demo trigger (button
 }
 $("#emTrigger").onclick = () => triggerEmergency(0.9, "demo trigger (button) — not a real detection");
 
-/* ------------------------------------------------------------------ system */
-async function loadSystem() {
-  const s = await api("/api/system").catch(() => null);
-  if (!s) return;
-  const t = s.tests;
-  const pass = t && t.summary ? t.summary.match(/(\d+)\s*\/\s*(\d+)/) : null;
-  $("#sysStats").innerHTML = [
-    [pass ? `${pass[1]}/${pass[2]}` : "—", "regression scenarios passing"],
-    [s.gpu ? s.gpu.replace("NVIDIA GeForce ", "") : "CPU", s.cuda ? `CUDA · ${s.vram_gb} GB` : "no CUDA"],
-    [String(state.demos.length), "processed drives available"],
-    ["17", "candidate arcs (±15°)"],
-  ].map(([n, l]) => `<div class="card card-pad stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`).join("");
-  $("#sysInfo").innerHTML = [
-    `Python ${esc(s.python)} · PyTorch ${esc(s.torch || "?")}`,
-    ...s.models.map(esc),
-    `Served over ${s.https ? "HTTPS" : "HTTP"} · LAN: ${s.lan_ips.map((ip) => esc(ip)).join(", ") || "—"}`,
-  ].map((x) => `<li>${x}</li>`).join("");
-  if (t) showTests(t);
-}
-function showTests(t) {
-  $("#testSummary").innerHTML = `<span class="${t.ok ? "st-GO" : "st-BRAKE"}">${esc(t.summary || (t.ok ? "passed" : "failed"))}</span> <span class="muted" style="font-weight:500">· ${esc(t.time)} · ${t.seconds}s</span>`;
-  $("#testList").textContent = t.results.join("\n");
-}
-$("#runTests").onclick = async () => {
-  const b = $("#runTests"); b.disabled = true; b.textContent = "Running…";
-  try { showTests(await api("/api/system/run-tests", { method: "POST" })); loadSystem(); } catch (e) { $("#testSummary").textContent = e.message; }
-  b.disabled = false; b.textContent = "Run tests";
-};
+
+/* ------------------------------------------------------------------ hero visual
+   An abstract, generated scene (no prototype imagery): a road in perspective, road users on both sides, and the
+   ego path as a light ribbon. Traffic on its own side and pedestrians on the footpath leave the path alone; when a
+   pedestrian steps into the corridor the ribbon shortens and turns amber - the product idea in one picture. */
+const hero = (() => {
+  const c = document.getElementById("heroCanvas");
+  if (!c) return { start() {}, stop() {} };
+  const g = c.getContext("2d");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const EGO = 7.5;                         // m/s
+  let W = 0, H = 0, raf = 0, running = false, last = 0, agents = [], nextCross = 3, clock = 0, brake = 0;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = c.clientWidth; H = c.clientHeight;
+    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  // ground-plane projection (camera 1.5 m high); vanishing point right of centre on wide screens
+  function P(x, z) {
+    const vx = W > 860 ? W * 0.7 : W * 0.5, hy = H * (W > 860 ? 0.33 : 0.24);
+    const f = Math.min(W * 0.5, H * 0.9), zz = z + 1.6;
+    return [vx + (x * f) / zz, hy + (2.4 * f) / zz, f / zz];
+  }
+  function spawn(kind, z) {
+    if (kind === "onc") return { kind, x: rnd(3.0, 3.5), z: z ?? rnd(42, 55), v: -rnd(2, 4), w: 1.7, l: 4 };
+    if (kind === "lead") return { kind, x: rnd(-0.15, 0.15), z: z ?? rnd(30, 40), v: rnd(6.5, 7.2), w: 1.5, l: 2.6 };
+    if (kind === "pedL") return { kind, x: rnd(-3.6, -3.0), z: z ?? rnd(35, 50), v: rnd(0.8, 1.4), w: 0.5, l: 0.5 };
+    if (kind === "pedR") return { kind, x: rnd(5.6, 6.2), z: z ?? rnd(35, 50), v: -rnd(0.8, 1.4), w: 0.5, l: 0.5 };
+    return null;
+  }
+  function seed() {
+    agents = [spawn("onc", 18), spawn("onc", 40), spawn("lead", 28), spawn("pedL", 9), spawn("pedL", 24), spawn("pedL", 40),
+              spawn("pedR", 14), spawn("pedR", 33)];
+  }
+  function step(dt) {
+    clock += dt;
+    for (const a of agents) {
+      a.z += (a.v - EGO * (1 - 0.8 * brake)) * dt;
+      if (a.vx) a.x += a.vx * dt;
+    }
+    agents = agents.filter((a) => a.z > 0.8 && a.z < 60 && a.x < 9);
+    const count = (k) => agents.filter((a) => a.kind === k).length;
+    if (count("onc") < 2) agents.push(spawn("onc"));
+    if (count("pedL") < 3) agents.push(spawn("pedL"));
+    if (count("pedR") < 2) agents.push(spawn("pedR"));
+    if (count("lead") < 1 && Math.random() < dt * 0.2) agents.push(spawn("lead"));
+    nextCross -= dt;
+    if (nextCross <= 0 && !agents.some((a) => a.kind === "cross")) {   // someone steps off the footpath ahead
+      agents.push({ kind: "cross", x: -3.3, z: 17, v: 0, vx: 1.2, w: 0.5, l: 0.5 });
+      nextCross = rnd(7, 10);
+    }
+    // conflict = a road user inside the ego corridor ahead (not "something is near")
+    const conflict = agents.some((a) => Math.abs(a.x) < 1.35 && a.z < 26 && (a.kind === "cross" || a.z < 12));
+    brake += ((conflict ? 1 : 0) - brake) * Math.min(1, dt * 3);
+  }
+  function col(v, a) {
+    const s = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    if (a === undefined) return s;
+    const n = parseInt(s.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  function draw() {
+    g.clearRect(0, 0, W, H);
+    const text = col("--text"), accent = col("--accent"), slow = col("--slow");
+    // road surface + edges (no lane paint: unmarked road)
+    const edgeL = -2.1, edgeR = 5.0, zFar = 60;
+    const pts = [P(edgeL, 0.2), P(edgeL, zFar), P(edgeR, zFar), P(edgeR, 0.2)];
+    const grd = g.createLinearGradient(0, pts[1][1], 0, H);
+    grd.addColorStop(0, col("--text", 0)); grd.addColorStop(1, col("--text", 0.05));
+    g.fillStyle = grd; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.fill();
+    for (const [ex, a] of [[edgeL, 0.35], [edgeR, 0.25], [-4.2, 0.12], [7.2, 0.1]]) {
+      const [x1, y1] = P(ex, 0.2), [x2, y2] = P(ex, zFar);
+      const lg = g.createLinearGradient(x1, y1, x2, y2);
+      lg.addColorStop(0, col("--text", a)); lg.addColorStop(1, col("--text", 0));
+      g.strokeStyle = lg; g.lineWidth = 1; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    }
+    // perception rings on the ground, slowly expanding
+    for (let k = 0; k < 3; k++) {
+      const r = ((clock * 5 + k * 12) % 36) + 2;
+      const a = 0.16 * (1 - r / 38);
+      g.strokeStyle = col("--accent", a); g.lineWidth = 1; g.beginPath();
+      for (let i = 0; i <= 48; i++) {
+        const th = Math.PI * (i / 48), [x, y] = P(Math.cos(th) * r, Math.sin(th) * r);
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+    }
+    // ego path ribbon: shortens and turns amber while a road user is in the corridor
+    const reach = 26 - 18 * brake;
+    const pathCol = (a) => (brake > 0.5 ? col("--slow", a) : col("--accent", a));
+    const segs = 40;
+    for (let i = 0; i < segs; i++) {
+      const z0 = 0.4 + (reach * i) / segs, z1 = 0.4 + (reach * (i + 1)) / segs;
+      const sway = (z) => 0.18 * Math.sin(clock * 0.5 + z * 0.05) * (z / 30);
+      const [a0, b0] = P(-0.9 + sway(z0), z0), [a1, b1] = P(0.9 + sway(z0), z0), [a2, b2] = P(0.9 + sway(z1), z1), [a3, b3] = P(-0.9 + sway(z1), z1);
+      g.fillStyle = pathCol(0.16 * (1 - i / segs)); g.beginPath(); g.moveTo(a0, b0); g.lineTo(a1, b1); g.lineTo(a2, b2); g.lineTo(a3, b3); g.fill();
+    }
+    g.strokeStyle = pathCol(0.9); g.lineWidth = 2; g.beginPath();
+    for (let i = 0; i <= segs; i++) {
+      const z = 0.4 + (reach * i) / segs, [x, y] = P(0.18 * Math.sin(clock * 0.5 + z * 0.05) * (z / 30), z);
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+    // road users, far to near
+    for (const a of [...agents].sort((p, q) => q.z - p.z)) {
+      const [x, y, s] = P(a.x, a.z);
+      const inPath = Math.abs(a.x) < 1.35 && a.z < 26 && (a.kind === "cross" || a.z < 12);
+      const fade = Math.min(1, (60 - a.z) / 18) * Math.max(0, Math.min(1, (a.z - 3) / 7));  // fade in far, out near
+      if (fade <= 0.01) continue;
+      if (a.kind === "onc" || a.kind === "lead") {
+        const w = a.w * s, h = 1.35 * s;
+        g.fillStyle = col("--text", 0.08 * fade); g.strokeStyle = col("--text", 0.55 * fade); g.lineWidth = 1.2;
+        g.beginPath(); g.roundRect ? g.roundRect(x - w / 2, y - h, w, h, Math.min(6, w * 0.12)) : g.rect(x - w / 2, y - h, w, h); g.fill(); g.stroke();
+      } else {
+        const h = 1.7 * s, r = Math.max(1.5, 0.13 * s);
+        g.strokeStyle = inPath ? col("--slow", fade) : col("--text", 0.7 * fade); g.lineWidth = Math.max(1.2, 0.09 * s); g.lineCap = "round";
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - h * 0.78); g.stroke();
+        g.fillStyle = g.strokeStyle; g.beginPath(); g.arc(x, y - h * 0.9, r, 0, 7); g.fill();
+      }
+      // perception brackets
+      const bw = Math.max(10, (a.w + 0.5) * s), bh = Math.max(14, (a.kind === "onc" || a.kind === "lead" ? 1.6 : 2.0) * s), k = Math.min(10, bw * 0.25);
+      g.strokeStyle = inPath ? col("--slow", 0.95 * fade) : col("--accent", 0.45 * fade); g.lineWidth = 1;
+      const x0 = x - bw / 2, y0 = y - bh, x1 = x + bw / 2, y1 = y + 2;
+      g.beginPath();
+      g.moveTo(x0, y0 + k); g.lineTo(x0, y0); g.lineTo(x0 + k, y0); g.moveTo(x1 - k, y0); g.lineTo(x1, y0); g.lineTo(x1, y0 + k);
+      g.moveTo(x0, y1 - k); g.lineTo(x0, y1); g.lineTo(x0 + k, y1); g.moveTo(x1 - k, y1); g.lineTo(x1, y1); g.lineTo(x1, y1 - k);
+      g.stroke();
+    }
+    // decision tag near the far end of the path
+    const [tx, ty] = P(0, reach + 1.5);
+    g.font = "600 12px Inter, 'Segoe UI', system-ui, sans-serif"; g.textAlign = "center";
+    g.fillStyle = brake > 0.5 ? slow : accent;
+    g.fillText(brake > 0.5 ? "YIELD" : "PATH CLEAR", tx, ty - 8);
+    void text;
+  }
+  function frame(t) {
+    if (!running) return;
+    const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
+    step(dt); draw();
+    raf = requestAnimationFrame(frame);
+  }
+  window.addEventListener("resize", () => { if (!$("#home").hidden) { resize(); if (reduce) draw(); } });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) hero.stop(); else if (!$("#home").hidden) hero.start(); });
+  return {
+    start() {
+      resize();
+      if (!agents.length) { seed(); for (let i = 0; i < 60; i++) step(0.05); }
+      if (reduce) { draw(); return; }
+      if (running) return;
+      running = true; last = performance.now(); raf = requestAnimationFrame(frame);
+    },
+    stop() { running = false; cancelAnimationFrame(raf); },
+  };
+})();
 
 /* ------------------------------------------------------------------ boot */
 (function boot() {
@@ -558,6 +746,11 @@ $("#runTests").onclick = async () => {
     const port = location.port || (location.protocol === "https:" ? 443 : 80);
     $("#liveUrls").innerHTML = s.lan_ips.map((ip) => `<div class="mono">https://${esc(ip)}:${location.protocol === "https:" ? port : 8443}</div>`).join("");
   }).catch(() => {});
-  const v = location.hash.slice(1);
-  loadDemos().catch(() => {}).finally(() => { if (VIEWS.includes(v)) showView(v); });
+  loadDemos().catch(() => {});
+  route();
+  // quiet reveal-on-scroll for the landing sections
+  const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.forEach((en) => {
+    if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+  }), { threshold: 0.15 }) : null;
+  $$(".home-section, .home-statement").forEach((el) => { if (io) { el.classList.add("reveal"); io.observe(el); } });
 })();

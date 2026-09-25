@@ -40,10 +40,12 @@ class DynamicArcPlanner:
         weight_smoothness: float = 15.0,
         steer_ema_alpha: float = 0.30,
         vehicle_half_width_m: float = 0.9,
-        lethal_cost: float = 240.0
+        lethal_cost: float = 240.0,
+        halo_lethal: bool = False  # legacy: treat soft cost >= lethal_cost as a collision (blocks arcs by proximity)
     ):
         self.L = wheelbase_m
         self.lethal_cost = lethal_cost
+        self.halo_lethal = halo_lethal
         self.half_width = vehicle_half_width_m
         self.max_steer_deg = max_steering_deg
         self.max_steer_rad = np.radians(max_steering_deg)
@@ -134,8 +136,10 @@ class DynamicArcPlanner:
                 samples = [costmap_builder.coord_to_grid(xm + dx, ym) for dx in (0.0, -self.half_width, self.half_width)]
                 pt_cost = max((float(costmap[r, c]) for c, r in samples if in_grid(c, r)), default=0.0)
 
-                # Collision = body overlaps any obstacle footprint (any class), or near-lethal cost
-                if pt_cost >= self.lethal_cost or (occupancy is not None and any(occupancy[r, c] for c, r in samples if in_grid(c, r))):
+                # Collision = the ego body overlaps a hard obstacle footprint (physical overlap, not proximity);
+                # the soft cost field only ranks arcs
+                hard_hit = occupancy is not None and any(occupancy[r, c] for c, r in samples if in_grid(c, r))
+                if hard_hit or (self.halo_lethal and pt_cost >= self.lethal_cost):
                     lethal_collision = True
 
                 # Weight closer obstacles heavier (1 / sqrt(y))

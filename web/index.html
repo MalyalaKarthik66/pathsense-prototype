@@ -21,24 +21,81 @@
   <symbol id="i-x" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
 </svg>
 
-<header class="topbar">
-  <div class="brand">
-    <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#12161b" stroke="#262d36"/><path d="M9 26 L15 6 M23 26 L17 6" stroke="#2dd4bf" stroke-width="2.6" stroke-linecap="round"/><path d="M16 24 Q16 16 20.5 10" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
-    <div>
-      <div class="wordmark">PathSense</div>
-      <div class="tagline">Adaptive Path Planning &amp; Collision Avoidance</div>
+<!-- ============================== LANDING ============================== -->
+<div id="home" class="home">
+  <header class="home-nav">
+    <a class="home-brand" href="#home" aria-label="PathSense home">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 27 L15 5 M23 27 L17 5" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round"/><path d="M16 25 Q16 16 20.5 10" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+      <span>PathSense</span>
+    </a>
+    <nav class="home-links" aria-label="Page">
+      <a href="#how" data-scroll>How it works</a>
+      <a href="#try" data-scroll>Experience</a>
+      <button class="icon-btn icon-btn-quiet" data-theme-toggle aria-label="Switch colour theme"><svg><use href="#i-sun"/></svg></button>
+      <a class="home-cta-sm" href="#demo">Try PathSense</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <canvas id="heroCanvas" aria-hidden="true"></canvas>
+    <div class="hero-copy">
+      <p class="hero-eyebrow">Research prototype · Smart India Hackathon 2026</p>
+      <h1>Adaptive perception and path planning for unpredictable roads.</h1>
+      <p class="hero-sub">PathSense reads mixed traffic — autos, two-wheelers, pedestrians, cattle — and chooses the safest path forward, one frame at a time.</p>
+      <div class="hero-actions">
+        <a class="btn-hero" href="#demo">Try PathSense</a>
+        <a class="btn-hero-ghost" href="#how" data-scroll>How it works <span aria-hidden="true">&rarr;</span></a>
+      </div>
     </div>
-  </div>
+    <div class="hero-scroll" aria-hidden="true"><span></span></div>
+  </section>
+
+  <section class="home-section" id="how">
+    <p class="section-eyebrow">How it works</p>
+    <h2 class="section-h">It looks at where you are going,<br>not just at what is nearby.</h2>
+    <div class="pillars">
+      <div class="pillar"><span class="pillar-n">01</span><h3>Perceive</h3><p>Every road user is detected, tracked and placed on a top-down map of the road ahead.</p></div>
+      <div class="pillar"><span class="pillar-n">02</span><h3>Anticipate</h3><p>Motion is followed over time to tell a pedestrian walking beside the road from one stepping into it.</p></div>
+      <div class="pillar"><span class="pillar-n">03</span><h3>Decide</h3><p>Seventeen candidate paths are scored every frame. The answer stays simple: go, slow down or brake &mdash; with the reason.</p></div>
+    </div>
+  </section>
+
+  <section class="home-statement">
+    <p>Oncoming traffic on its own side keeps moving.<br>A pedestrian on the footpath keeps walking.<br><span>Only a conflict with your path changes the decision.</span></p>
+  </section>
+
+  <section class="home-section" id="try">
+    <p class="section-eyebrow">Experience</p>
+    <h2 class="section-h">See it on real Indian roads.</h2>
+    <div class="experience">
+      <a class="exp" href="#demo"><span class="exp-k">Demo</span><span class="exp-t">Replay processed drives from Bengaluru and Delhi, or upload your own dashcam video.</span><span class="exp-go" aria-hidden="true">&rarr;</span></a>
+      <a class="exp" href="#live"><span class="exp-k">Live</span><span class="exp-t">Point a phone camera at the road and watch decisions appear as you move.</span><span class="exp-go" aria-hidden="true">&rarr;</span></a>
+      <a class="exp" href="#emergency"><span class="exp-k">Emergency</span><span class="exp-t">A confirmation-first accident response, shown in simulation.</span><span class="exp-go" aria-hidden="true">&rarr;</span></a>
+    </div>
+    <div class="home-final"><a class="btn-hero" href="#demo">Try PathSense</a></div>
+  </section>
+
+  <footer class="home-foot">
+    <span class="home-foot-brand">PathSense</span>
+    <span>Research prototype &mdash; not a certified autonomous-driving or safety system. Emergency features run in simulation only.</span>
+  </footer>
+</div>
+
+<!-- ============================== APP ============================== -->
+<div id="app" class="app" hidden>
+<header class="topbar">
+  <a class="brand" href="#home" aria-label="PathSense home">
+    <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 27 L15 5 M23 27 L17 5" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round"/><path d="M16 25 Q16 16 20.5 10" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+    <span class="wordmark">PathSense</span>
+  </a>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab" role="tab" data-view="demo" aria-selected="true"><svg><use href="#i-play"/></svg>Demo</button>
     <button class="tab" role="tab" data-view="live"><svg><use href="#i-cam"/></svg>Live</button>
-    <button class="tab" role="tab" data-view="events"><svg><use href="#i-list"/></svg>Events</button>
     <button class="tab" role="tab" data-view="emergency"><svg><use href="#i-sos"/></svg>Emergency</button>
-    <button class="tab" role="tab" data-view="system"><svg><use href="#i-cpu"/></svg>System</button>
   </nav>
-  <button class="icon-btn" id="themeBtn" aria-label="Switch colour theme"><svg><use href="#i-sun"/></svg></button>
+  <button class="icon-btn" id="themeBtn" data-theme-toggle aria-label="Switch colour theme"><svg><use href="#i-sun"/></svg></button>
 </header>
-<p class="notice"><strong>Research prototype</strong> — not a certified autonomous driving or safety system. Monocular distances are estimates. Emergency features run in simulation only.</p>
+<p class="notice"><strong>Research prototype</strong> &mdash; not a certified autonomous driving or safety system. Monocular distances are estimates. Emergency features run in simulation only.</p>
 
 <main>
   <!-- ============================== DEMO ============================== -->
@@ -51,7 +108,7 @@
             <div>
               <div class="eyebrow" style="color:#2dd4bf">PathSense Demo</div>
               <h3>Choose a processed drive or upload your own</h3>
-              <p>Every decision shown here is produced by the actual pipeline: detection → depth → TTC → BEV → planner → decision.</p>
+              <p>Every decision shown is produced by the PathSense pipeline on the video itself.</p>
               <button class="btn btn-primary" data-action="upload"><svg><use href="#i-up"/></svg>Upload video</button>
             </div>
           </div>
@@ -95,8 +152,26 @@
       </aside>
     </div>
 
+    <section class="replay" id="replay" aria-labelledby="replayTitle">
+      <div class="section-title">
+        <div><h2 id="replayTitle">Replay</h2><p>Key moments in this drive. Select one to replay it with the reason behind the decision.</p></div>
+        <div class="filters" id="evFilters">
+          <button class="filter" aria-pressed="true" data-f="key">Key moments</button>
+          <button class="filter" aria-pressed="false" data-f="brake">Brake</button>
+          <button class="filter" aria-pressed="false" data-f="behavior">Road users</button>
+          <button class="filter" aria-pressed="false" data-f="all">All</button>
+        </div>
+      </div>
+      <div class="replay-grid">
+        <ul class="moments" id="eventList"></ul>
+        <aside class="card moment-card" id="momentCard" aria-live="polite">
+          <p class="muted" style="margin:0">Select a moment to replay it.</p>
+        </aside>
+      </div>
+    </section>
+
     <div class="section-title">
-      <div><h2>Processed drives</h2><p>Videos currently in <span class="mono">outputs/</span> and your uploads</p></div>
+      <div><h2>Drives</h2><p>Processed validation drives and your uploads</p></div>
       <button class="btn btn-primary" data-action="upload"><svg><use href="#i-up"/></svg>Upload</button>
     </div>
     <div class="library" id="library"></div>
@@ -153,28 +228,6 @@
     </div>
   </section>
 
-  <!-- ============================== EVENTS ============================== -->
-  <section class="view" id="view-events" role="tabpanel">
-    <div class="section-title" style="margin-top:0">
-      <div><h2 id="evTitle">Events</h2><p>Decision changes, behaviour cues and accident alerts logged by the pipeline. Select one to jump to it.</p></div>
-      <div class="filters" id="evFilters">
-        <button class="filter" aria-pressed="true" data-f="all">All</button>
-        <button class="filter" aria-pressed="false" data-f="brake">Brake</button>
-        <button class="filter" aria-pressed="false" data-f="decision">Decisions</button>
-        <button class="filter" aria-pressed="false" data-f="behavior">Behaviour</button>
-        <button class="filter" aria-pressed="false" data-f="accident">Accident</button>
-      </div>
-    </div>
-    <div class="grid-demo">
-      <ul class="events" id="eventList"></ul>
-      <aside class="card card-pad inspector decision">
-        <div class="eyebrow">Event inspector</div>
-        <pre id="evCard" style="margin-top:12px">Select an event.</pre>
-        <div class="row" style="margin-top:14px"><button class="btn btn-primary" id="evPlay" disabled><svg><use href="#i-play"/></svg>Replay in player</button></div>
-      </aside>
-    </div>
-  </section>
-
   <!-- ============================== EMERGENCY ============================== -->
   <section class="view" id="view-emergency" role="tabpanel">
     <div class="callout warn" style="margin-bottom:20px">
@@ -217,34 +270,6 @@
     </div>
   </section>
 
-  <!-- ============================== SYSTEM ============================== -->
-  <section class="view" id="view-system" role="tabpanel">
-    <div class="card card-pad">
-      <div class="eyebrow">Pipeline (per frame)</div>
-      <div class="pipeline" style="margin-top:12px">
-        <span class="node">Camera</span><span class="arrow">→</span><span class="node">YOLOv8 + ByteTrack</span><span class="arrow">→</span>
-        <span class="node">Depth (road-plane)</span><span class="arrow">→</span><span class="node">TTC</span><span class="arrow">→</span>
-        <span class="node">Ego-motion</span><span class="arrow">→</span><span class="node">BEV costmap</span><span class="arrow">→</span>
-        <span class="node">17-arc planner</span><span class="arrow">→</span><span class="node">Behaviour + path threat</span><span class="arrow">→</span>
-        <span class="node" style="border-color:var(--accent)">Decision</span><span class="arrow">→</span><span class="node">Accident monitor</span>
-      </div>
-    </div>
-    <div class="stat-grid" id="sysStats" style="margin-top:20px"></div>
-    <div class="grid-2" style="margin-top:20px">
-      <div class="card card-pad">
-        <div class="row" style="justify-content:space-between">
-          <div><h2 style="margin:0;font-size:18px">Safety regression suite</h2><p class="muted" style="margin:4px 0 0;font-size:13.5px">scenario_tests.py — synthetic scenarios with expected decisions</p></div>
-          <button class="btn btn-primary" id="runTests">Run tests</button>
-        </div>
-        <div id="testSummary" style="margin-top:14px;font-weight:700"></div>
-        <pre id="testList" class="mono" style="margin-top:10px;max-height:360px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
-      </div>
-      <div class="card card-pad">
-        <h2 style="margin:0 0 10px;font-size:18px">Runtime</h2>
-        <ul class="list" id="sysInfo"></ul>
-      </div>
-    </div>
-  </section>
 </main>
 
 <!-- upload modal -->
@@ -277,6 +302,8 @@
     <div class="em-head"><h3 id="emTitle">ACCIDENT DETECTED</h3><p>DEMO / SIMULATION — nothing has been sent or called</p></div>
     <div class="modal-body" id="emBody"></div>
   </div>
+</div>
+
 </div>
 
 <script src="/static/app.js"></script>
