@@ -73,6 +73,14 @@ class EventLogger:
                               "closing_speed_mps": _r(obj.get("closing_speed_mps"))}})
         self.events.append(ev)
 
+    def log_accident(self, frame_idx: int, status: Dict[str, Any], workflow: Optional[Dict[str, Any]]):
+        """POSSIBLE collision (workflow None) or CONFIRMED accident with the simulated emergency workflow."""
+        ev = self._base(frame_idx, "accident")
+        ev.update({"accident_state": status["state"], "confidence": status.get("confidence"),
+                   "cues": status.get("cues"), "involved_track_ids": status.get("involved_track_ids"),
+                   "workflow": workflow})
+        self.events.append(ev)
+
     def _close(self, end_frame: int):
         c = self._cur
         c["end_frame"] = int(end_frame)
@@ -102,6 +110,13 @@ def event_card(ev: Dict[str, Any]) -> str:
     o = ev.get("object") or {}
     lines = [f"Event #{ev['id']} ({ev['type']})",
              f"  Frame:     {ev['frame']}  (t = {ev['time_s']:.2f} s)"]
+    if ev["type"] == "accident":
+        lines += [f"  Accident:  {ev['accident_state']}  confidence {ev.get('confidence')}  cues {ev.get('cues')}"]
+        wf = ev.get("workflow") or {}
+        if wf:
+            lines += [f"  Workflow:  {wf.get('mode')} - notification {[r.get('status') for r in wf.get('notification', {}).get('results', [])]}",
+                      f"  Ambulance: {wf.get('ambulance_request')}"]
+        return "\n".join(lines)
     if ev["type"] == "decision":
         lines += [f"  Decision:  {ev['decision']}" + (f"  (lasted {ev['duration_s']} s)" if "duration_s" in ev else ""),
                   f"  Reason:    {ev.get('title') or '-'}  |  {ev.get('reason') or '-'}",
@@ -130,7 +145,10 @@ def draw_timeline(data: Dict[str, Any], out_png: str):
                 color=LABEL_COLORS.get(s["decision"], "#95a5a6"), edgecolor="none")
     for e in data["events"]:
         t = e["time_s"]
-        if e["type"] == "behavior":
+        if e["type"] == "accident":
+            ax.plot(t, 1.45, marker="X", color="#c0392b" if e["accident_state"] == "CONFIRMED" else "#e67e22", markersize=10)
+            ax.text(t, 1.52, "ACCIDENT" if e["accident_state"] == "CONFIRMED" else "possible", fontsize=7, ha="center")
+        elif e["type"] == "behavior":
             ax.plot(t, 0.25, marker="v", color="#34495e", markersize=7)
             ax.text(t, 0.02, f"{e['behavior']}", rotation=90, fontsize=6, ha="center", va="bottom", color="#34495e")
         elif e["decision"] in ("BRAKE", "NO SAFE PATH - BRAKE"):
@@ -166,7 +184,9 @@ def replay(data: Dict[str, Any], event_id: int, video: Optional[str], out_dir: s
         if not ok:
             break
         if writer is None:
-            writer = cv2.VideoWriter(clip_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (frame.shape[1], frame.shape[0]))
+            writer = cv2.VideoWriter(clip_path, cv2.VideoWriter_fourcc(*"avc1"), fps, (frame.shape[1], frame.shape[0]))
+            if not writer.isOpened():  # H.264 unavailable -> MPEG-4 Part 2
+                writer = cv2.VideoWriter(clip_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (frame.shape[1], frame.shape[0]))
         if i == ev["frame"]:
             still = frame.copy()
             lines = card.splitlines()
@@ -199,7 +219,7 @@ def main(argv=None):
             if a.label and e.get("decision") != a.label and e.get("behavior") != a.label:
                 continue
             o = e.get("object") or {}
-            what = e.get("decision") or e.get("behavior")
+            what = e.get("decision") or e.get("behavior") or f"ACCIDENT:{e.get('accident_state')}"
             obj = f"{o.get('class_name')} #{o.get('track_id')} {o.get('distance_m')} m TTC {o.get('ttc_s')}" if o else "-"
             dur = f"{e['duration_s']:5.1f}s" if "duration_s" in e else "      "
             print(f"#{e['id']:4d}  t={e['time_s']:7.2f}s  f={e['frame']:5d}  {dur}  {what:22s}  {e.get('title', ''):34s}  {obj}")

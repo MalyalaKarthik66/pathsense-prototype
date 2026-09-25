@@ -125,6 +125,7 @@ class BehaviorAnalyzer:
         for o in objects:
             tid = o.get("track_id", -1)
             o["behavior"] = None
+            o["lat_vel_mps"] = None
             if tid is None or tid < 0 or o.get("bev_x_m") is None or o.get("bev_y_m") is None:
                 continue
             seen.add(tid)
@@ -145,7 +146,10 @@ class BehaviorAnalyzer:
             tid = o["track_id"]
             others = [r for t, r in rates.items() if t != tid]
             drift = float(np.median(others)) if len(others) >= 2 else None
-            cand, speed_based = self._raw(o, fits.get(tid), drift, ego_speed_mps)
+            fit = fits.get(tid)
+            # drift-corrected lateral velocity (m/s, + = rightwards) for the decision's path-threat model
+            o["lat_vel_mps"] = (fit["vx"] - (drift or 0.0) * o["bev_y_m"]) if fit else None
+            cand, speed_based = self._raw(o, fit, drift, ego_speed_mps)
             for b in BEHAVIORS:
                 self.streak[(tid, b)] = self.streak[(tid, b)] + 1 if b == cand else 0
             need = self.n_persist_speed if speed_based else self.n_persist

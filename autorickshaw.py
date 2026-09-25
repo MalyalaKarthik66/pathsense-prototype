@@ -7,7 +7,7 @@ boxes with zero-shot CLIP (openai/clip-vit-base-patch32 via the already-required
 no new dependency) and relabels a *track* as 'auto-rickshaw' only after repeated agreement:
 
   - candidates: YOLO class truck/bus, confirmed ByteTrack id, box fully inside the image (all four borders),
-    40 px <= size, width <= 45% / height <= 60% of the frame (no partial close-ups)
+    60 px <= size, width <= 45% / height <= 60% of the frame (no partial close-ups)
   - each candidate track is sampled at most every `every_s` seconds, max `max_crops` crops per frame (batched)
   - p_auto = CLIP probability mass of the auto-rickshaw prompts vs truck / bus / car / van prompts
   - a track is labelled auto-rickshaw when it has >= `min_votes` samples with mean p_auto >= `threshold`
@@ -15,7 +15,7 @@ no new dependency) and relabels a *track* as 'auto-rickshaw' only after repeated
 The YOLO detector and ByteTrack are unchanged; the original class is kept in obj['yolo_class']. If CLIP cannot be
 loaded, the classifier disables itself and the pipeline keeps the YOLO labels. Validated by eye on 60 Bangalore
 truck/bus crops (about 47 were autos): at p_auto > 0.6, 46 autos recognised and 1 false positive (a small yellow
-goods tempo); the pipeline uses the stricter 0.7 plus multi-sample voting. It is a zero-shot estimate, not ground truth.
+goods tempo); the pipeline uses the stricter 0.75 plus multi-sample voting and ignores crops narrower than 60 px. It is a zero-shot estimate, not ground truth.
 """
 
 from collections import defaultdict
@@ -35,8 +35,8 @@ OTHER_PROMPTS = ["a photo of a truck", "a photo of a bus", "a photo of a car", "
 
 class AutoRickshawClassifier:
     def __init__(self, fps: float = 25.0, device: Optional[str] = None, model_name: str = "openai/clip-vit-base-patch32",
-                 every_s: float = 1.0, max_crops: int = 2, threshold: float = 0.7, min_votes: int = 2,
-                 min_width_px: int = 40, enabled: bool = True):
+                 every_s: float = 1.0, max_crops: int = 2, threshold: float = 0.75, min_votes: int = 2,
+                 min_width_px: int = 60, enabled: bool = True):
         self.enabled = enabled
         self.every = max(1, int(round(every_s * (fps if fps and fps > 0 else 25.0))))
         self.max_crops, self.threshold, self.min_votes, self.min_w = max_crops, threshold, min_votes, min_width_px

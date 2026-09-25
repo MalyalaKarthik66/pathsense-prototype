@@ -17,6 +17,7 @@ from costmap import BEVCostmap, CLASS_SAFETY_PROFILES
 from planner import DynamicArcPlanner
 from decision import DecisionState, GO, CAUTION, BRAKE
 from behavior import BehaviorAnalyzer
+from accident import AccidentDetector, NORMAL, POSSIBLE, CONFIRMED
 from detect_track import suppress_riders, apply_rider_memory
 
 FPS = 25.0
@@ -152,6 +153,100 @@ def auto_rickshaw_real_image_check() -> bool:
     return ok
 
 
+def accident_tests() -> List[bool]:
+    """Accident detector: synthetic multi-second sequences; one frame must never raise an emergency."""
+    def car(tid, cx, cy, w=160, h=110, y=8.0, in_corr=False, clos=0.0, ttc=None, cls="car"):
+        return {"track_id": tid, "class_name": cls, "bbox": [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
+                "bev_y_m": y, "in_corridor": in_corr, "closing_speed_mps": clos, "ttc_sec": ttc}
+
+    def run_seq(frames):
+        det, states = AccidentDetector(fps=FPS), []
+        for i, (objs, speed, jolt) in enumerate(frames):
+            states.append(det.update(i, objs, speed, jolt)["state"])
+        return det, states
+
+    n = int(FPS)
+    out = []
+
+    def report(name, ok, states):
+        seen = [s for k, s in enumerate(states) if k == 0 or s != states[k - 1]]
+        print(f"  [{'PASS' if ok else 'FAIL'}] {name:52s} states={' -> '.join(seen)}")
+        out.append(ok)
+
+    # 1 normal driving with a lead car
+    _, s = run_seq([([car(1, 640, 420, y=12 - 0.01 * i)], 30.0, 2.0 + 0.3 * np.sin(i)) for i in range(6 * n)])
+    report("ACC1 normal driving: no accident", set(s) == {NORMAL}, s)
+    # 2 sudden braking without collision (speed 40 -> 0 in 1 s, strong jolt) and nobody close
+    fr = [([car(1, 900, 400, y=25)], max(0.0, 40 - 40 * max(0, i - n) / n), 2.0 + (20.0 if i == n + 5 else 0)) for i in range(5 * n)]
+    _, s = run_seq(fr)
+    report("ACC2 sudden braking + jolt, no collision cue", set(s) == {NORMAL}, s)
+    # 3 normal stopped vehicle: ego stopped at a signal, lead car 3 m ahead, nothing closing
+    _, s = run_seq([([car(1, 640, 450, w=300, h=220, y=3.0, in_corr=True, clos=0.0)], 0.0, 1.5) for i in range(6 * n)])
+    report("ACC3 stopped in a queue: no accident", set(s) == {NORMAL}, s)
+    # 4 possible collision: two cars converge and overlap briefly, then separate and keep driving -> unconfirmed
+    fr = []
+    for i in range(6 * n):
+        d = max(40, 400 - 12 * i) if i < 30 else 40 + 15 * (i - 30)
+        fr.append(([car(1, 640 - d / 2, 420, y=10 + 0.05 * i), car(2, 640 + d / 2, 420, y=10 + 0.05 * i)], 30.0, 2.0))
+    det, s = run_seq(fr)
+    report("ACC4 brief contact, then both drive on: never CONFIRMED", POSSIBLE in s and CONFIRMED not in s and s[-1] == NORMAL, s)
+    # 5 confirmed collision: converge, overlap, jolt, then both stay still
+    fr = []
+    for i in range(6 * n):
+        d = max(30, 400 - 14 * i)
+        fr.append(([car(1, 640 - d / 2, 420, y=10.0), car(2, 640 + d / 2, 420, y=10.5)], 25.0 if i < 30 else 0.0,
+                   25.0 if i == 28 else 2.0))
+    det, s = run_seq(fr)
+    report("ACC5 collision + post-collision standstill: CONFIRMED", CONFIRMED in s and det.confidence >= 0.7, s)
+    # 6 emergency state persists (latched) while the scene continues
+    for i in range(6 * n, 10 * n):
+        det.update(i, [car(3, 300, 400, y=20)], 20.0, 2.0)
+    ok6 = det.state == CONFIRMED
+    report("ACC6 CONFIRMED stays latched until reset", ok6, [det.state])
+    # 7 false-positive suppression: a single-frame impact-like cue must not confirm
+    fr = [([car(1, 640, 420, y=1.5, in_corr=True, clos=5.0, ttc=0.3)] if i == 2 * n else [car(1, 640, 400, y=15)], 30.0,
+           30.0 if i == 2 * n else 2.0) for i in range(6 * n)]
+    _, s = run_seq(fr)
+    report("ACC7 single-frame spike: no emergency", CONFIRMED not in s and s[-1] == NORMAL, s)
+    # 8 recovery after reset
+    det.reset()
+    st = det.update(0, [car(1, 640, 400, y=15)], 30.0, 2.0)["state"]
+    report("ACC8 reset -> NORMAL", st == NORMAL and det.confidence == 0.0, [st])
+    # 9 overtaking car entering at the frame edge: its clipped box changes shape quickly -> not a collision cue
+    det9, s = AccidentDetector(fps=FPS, frame_width=1280), []
+    for i in range(4 * n):
+        right = 1480 - 15 * i  # true (unclipped) extent of a 220 px wide car sliding in from the right
+        o = {"track_id": 1, "class_name": "car", "bbox": [right - 220, 360, min(1280.0, right), 470], "bev_y_m": 7.0,
+             "in_corridor": False, "closing_speed_mps": -2.0, "ttc_sec": None}
+        s.append(det9.update(i, [o], 40.0, 2.0)["state"])
+    report("ACC9 car entering at frame edge: no collision cue", set(s) == {NORMAL}, s)
+    # 10 congestion (cattle / queue): ego creeps to a halt, two slow cars converge in the image and overlap
+    # (one passes behind the other), then everyone waits -> at most POSSIBLE, never an emergency
+    fr = []
+    for i in range(8 * n):
+        d = max(20, 400 - 14 * i)
+        fr.append(([car(1, 640 - d / 2, 420, y=9.0, clos=0.3), car(2, 640 + d / 2, 420, w=120 if i < 30 else 170, y=9.5, clos=0.3)],
+                   max(0.0, 8.0 - 8.0 * i / (3 * n)), 2.0))
+    _, s = run_seq(fr)
+    report("ACC10 congestion creep-to-stop + occlusion: no emergency", CONFIRMED not in s, s)
+    # 11 static near-field false object (window reflection / bonnet) "at 1.5 m" with noisy closing speed and camera sway
+    rng = np.random.default_rng(3)
+    fr = [([car(9, 900, 600, w=500, h=260, y=1.5 + 0.1 * rng.standard_normal(), in_corr=True, clos=3.0 * rng.standard_normal(),
+                ttc=None)], 4.0, 2.0 + (12.0 if i % 20 == 0 else 0.0)) for i in range(6 * n)]
+    _, s = run_seq(fr)
+    report("ACC11 static near-field reflection + camera sway: no emergency", CONFIRMED not in s, s)
+    # 12 ego rear-ends a lead car: tracked from 8 m to <2 m in ~1 s, jolt at contact, then abrupt stop
+    fr = []
+    for i in range(6 * n):
+        y = max(0.8, 8.0 - 7.0 * i / n)
+        sp = 30.0 if y > 0.8 else max(0.0, 30.0 - 60.0 * (i - n) / n)
+        fr.append(([car(1, 640, 420, w=200 + 30 * (8 - y), h=150 + 20 * (8 - y), y=y, in_corr=True,
+                        clos=7.0 if y > 0.8 else 0.0, ttc=y / 7.0 if y > 0.8 else None)], sp, 30.0 if i == n else 2.0))
+    det, s = run_seq(fr)
+    report("ACC12 ego rear-end collision (tracked approach + jolt + stop): CONFIRMED", CONFIRMED in s, s)
+    return out
+
+
 def main() -> int:
     GO_LABELS = {"GO STRAIGHT"}
     results = []
@@ -189,8 +284,8 @@ def main() -> int:
                          {"SLOW DOWN", "BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=CAUTION))
     results.append(check("D  vehicle 10 m away in adjacent lane", [(1, "car", const(-3.5), const(10.0))], 4,
                          GO_LABELS, max_level=CAUTION, max_abs_steer=3.0))
-    results.append(check("E  pedestrian near road, outside corridor (x=+2.8)", [(1, "person", const(2.8), const(9.0))], 4,
-                         {"SLOW DOWN"}, max_level=CAUTION, must_reach=CAUTION))
+    results.append(check("E  pedestrian standing 1.1 m outside corridor (x=+2.8)", [(1, "person", const(2.8), const(9.0))], 4,
+                         GO_LABELS | {"SLOW DOWN"}, max_level=CAUTION))
     results.append(check("F  all candidate trajectories blocked (stopped trucks, ego 1.5 m/s)",
                          [(i, "truck", const(x), closing(7, 1.5, stop=1.5)) for i, x in enumerate([-4.0, -1.5, 1.5, 4.0], start=1)], 4.5,
                          {"NO SAFE PATH - BRAKE", "BRAKE"}, must_reach=BRAKE))
@@ -261,6 +356,38 @@ def main() -> int:
     ok = kept == [1, 3] and kept2 == [5, 6] and later[0]["class_name"] == "motorcycle"
     print(f"  [{'PASS' if ok else 'FAIL'}] {'RS rider merged into motorcycle, pedestrian kept':52s} kept tracks={kept} / close-edge case {kept2}")
     results.append(ok)
+    # --- directional path-threat model (India: left-hand traffic, oncoming traffic on the right, x > 0)
+    results.append(check("DIR1 harmless oncoming car holding its own (right) side",
+                         [(1, "car", const(3.4), lambda t: (32 - 15.0 * t) if t < 2.0 else None)], 2.5,
+                         GO_LABELS, max_level=GO, ego_speed=7.0))
+    results.append(check("DIR2 oncoming car slowly drifting toward ego lane",
+                         [(1, "car", lambda t: 4.4 - 0.55 * t, closing(34, 9.0, stop=12.0))], 2.8,
+                         {"SLOW DOWN"}, max_level=CAUTION, must_reach=CAUTION, ego_speed=5.0))
+    results.append(check("DIR3 oncoming car entering ego corridor",
+                         [(1, "car", lambda t: max(0.6, 3.6 - 1.8 * t), closing(26, 13.0, stop=3.0))], 1.8,
+                         {"BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=BRAKE, ego_speed=6.0))
+    results.append(check("DIR4 pedestrian walking parallel on the left shoulder",
+                         [(1, "person", const(-3.0), closing(20, 3.5, stop=2.0))], 5,
+                         GO_LABELS, max_level=GO, ego_speed=5.0))
+    results.append(check("DIR5 pedestrian close to ego corridor (0.5 m from edge)",
+                         [(1, "person", const(-2.2), const(9.0))], 3,
+                         {"SLOW DOWN"}, max_level=CAUTION, must_reach=CAUTION, ego_speed=4.0, expect_title="close to path"))
+    results.append(check("DIR6 pedestrian crossing directly into ego path",
+                         [(1, "person", lambda t: max(0.0, 3.0 - 1.4 * t), closing(10, 3.0, stop=4.0))], 3,
+                         {"BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=BRAKE, ego_speed=3.0))
+    results.append(check("DIR7 motorcycle overtaking on the right, passing safely",
+                         [(1, "motorcycle", const(2.5), lambda t: 3.0 + 2.5 * t)], 4,
+                         GO_LABELS, max_level=GO, ego_speed=6.0))
+    results.append(check("DIR8 real cut-in in front (SLOW DOWN/BRAKE by TTC)",
+                         [(1, "car", lambda t: max(0.0, 3.6 - 1.6 * t), closing(8, 2.0, stop=4.0))], 3,
+                         {"SLOW DOWN", "BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=CAUTION, ego_speed=6.0,
+                         expect_behavior="CUT-IN"))
+    results.append(check("DIR9 wrong-way vehicle on the ego (left) side, near corridor",
+                         [(1, "car", const(-3.3), lambda t: (30 - 14.0 * t) if t < 1.9 else None)], 2.4,
+                         {"SLOW DOWN", "BRAKE", "NO SAFE PATH - BRAKE"}, must_reach=CAUTION, ego_speed=6.0))
+    results.append(check("DIR10 oncoming truck passing on its side, depth-induced x drift (Bangalore)",
+                         [(1, "truck", lambda t: 2.1 + 0.19 * (20 - 8.0 * t), lambda t: (20 - 8.0 * t) if t < 2.2 else None)],
+                         2.8, {"GO STRAIGHT", "STEER LEFT", "STEER RIGHT", "SLOW DOWN"}, max_level=CAUTION, ego_speed=3.0))
     # --- temporal behaviour
     results.append(check("R  recovery: closing car then disappears",
                          [(1, "car", const(0.0), lambda t: (8 - 6 * t) if t < 0.9 else None)], 5,
@@ -268,6 +395,8 @@ def main() -> int:
     results.append(check("N  noisy lead car hovering at corridor edge (no flicker)",
                          [(1, "car", lambda t: 2.3 + 0.3 * np.sin(40 * t), const(9.0))], 5,
                          set(), max_level=CAUTION, max_transitions=3))
+    print("\nAccident detection")
+    results += accident_tests()
     passed = sum(results)
     print(f"\n{passed}/{len(results)} scenarios passed")
     return 0 if passed == len(results) else 1

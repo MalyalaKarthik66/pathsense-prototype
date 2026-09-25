@@ -132,7 +132,7 @@ object collision radius + 0.3 m):
 |---|---|
 | **BRAKE** (immediate) | TTC < 1.0 s |
 | **BRAKE** | closer than 2.0 m; TTC < 2.0 s within 15 m; pedestrian/animal/bicycle within 6 m; planner: all arcs blocked |
-| **SLOW DOWN** | TTC < 4.0 s; pedestrian/animal within 15 m; cut-in / crossing / oncoming cue; stopped lead; closer than max(5 m, 1.2 s × ego speed). Outside the corridor: pedestrian/animal within 1.5 m of it, cut-in/crossing within 0.8 m, oncoming within 1 m, or TTC < 2 s within 0.5 m |
+| **SLOW DOWN** | TTC < 4.0 s; pedestrian/animal within 15 m; cut-in / crossing / oncoming cue; stopped lead; closer than max(5 m, 1.2 s × ego speed). Outside the corridor: see *directional path-threat model* below |
 | **GO** | otherwise (`STEER LEFT/RIGHT` when the planner steers ≥ 4°) |
 
 Temporal state machine: SLOW DOWN needs 0.3 s persistence, BRAKE 0.2 s (TTC < 1 s is immediate); BRAKE is held
@@ -148,6 +148,24 @@ The panel shows: decision, reason title (e.g. *Slow vehicle ahead*, *Motorcycle 
 from the planner's per-arc test (`PATH CLEAR` / `PARTIAL k/17` / `BLOCKED`) and the number of objects raising risk.
 The responsible object is outlined in white; red boxes = critical in-path objects, orange = closing but outside the
 corridor. A thin strip above the instrument bar shows the decision history of the whole video.
+
+### Directional path-threat model (objects outside the corridor)
+
+A threat is a **conflict with the ego path**, not "an object is close". Each object gets a `path_conflict` class from
+its clearance to the corridor, its drift-corrected lateral velocity (`behavior.py`) and its predicted clearance within
+min(TTC, 3 s). India drives on the **left** (`traffic_side="left"`): oncoming traffic is expected on the right.
+
+| Class | Meaning | Decision |
+|---|---|---|
+| `IN_PATH` | inside the corridor | in-corridor rules above |
+| `ENTERING` | predicted to enter the corridor | **BRAKE** if TTC < 2 s within 15 m, or a pedestrian/animal within 6 m; else SLOW DOWN ("car cut-in", "person crossing into path") |
+| `APPROACHING` | moving toward the corridor (≥ 0.3 m/s), within 15 m | SLOW DOWN ("… drifting toward path") |
+| `NEAR` | close but parallel / moving away | SLOW DOWN only for a pedestrian/animal < 0.8 m not moving away, a wrong-way vehicle < 1.5 m, or a same-direction vehicle < 0.5 m with TTC < 2 s within 10 m |
+| `CLEAR` | no conflict | GO |
+
+So an oncoming car staying on its own side → GO (monitor); drifting toward us → SLOW DOWN; entering the corridor →
+BRAKE; all arcs blocked → NO SAFE PATH. For an oncoming vehicle on its own side the monocular lateral velocity is unreliable (at high closing speed a passing vehicle's estimated x shrinks with depth error), so it is ENTERING only at < 0.5 m from the corridor edge while moving in at ≥ 1 m/s, otherwise at most APPROACHING within 1 m (measured on the Bangalore clip, regression DIR10). A pedestrian walking along the shoulder → at most CAUTION; stepping toward the
+path → SLOW DOWN; entering / crossing → BRAKE. Regression scenarios DIR1–DIR9 cover these cases.
 
 ## 8. Event timeline and replay (audit trail)
 
@@ -198,21 +216,21 @@ is kept in the events. Cost ≈ 1 ms/frame on average, ~0.3 GB extra VRAM; disab
 
 ## 11. Dataset / video validation
 
-All clips are processed by the same pipeline (RTX 3050 Laptop GPU, ~9 FPS at 720p, ~15 FPS at 360p; 0.3–0.5×
-real time). Indian clips are from Wikimedia Commons (`python download_samples.py --indian`). "Baseline" is commit
+All clips are processed by the same pipeline (RTX 3050 Laptop GPU, 8.6–9.0 FPS at 720p measured on the current
+code; 0.3× real time). Rows marked *(prev. round)* were not re-rendered in this round (their outputs were removed). Indian clips are from Wikimedia Commons (`python download_samples.py --indian`). "Baseline" is commit
 `ecfb166` (before the decision HUD / events / behaviour / auto-rickshaw work).
 
 | Clip | Location | Licence (author) | Duration / FPS | Scenario | BRAKE % (baseline → now) | SLOW DOWN % | GO % | Cut-in / crossing / oncoming cues | Autos |
 |---|---|---|---|---|---|---|---|---|---|
-| `india_bangalore` | Bangalore, Nandidurga Rd | CC0 (L. Shyamal) | 127 s / 30 | dense mixed traffic, autos, signal queue | 5.1 → 5.2 | 87.5 | 7.3 | 2 / 1 / 4 | 13 |
-| `india_newbel` | Bangalore, New BEL Rd | CC0 (L. Shyamal) | 96 s / 30 | narrow road, pedestrians, oncoming | 13.1 → 13.0 | 44.5 | 42.5 | 1 / 0 / 5 | 2 |
-| `india_cvraman` | Bangalore, C V Raman Rd | CC0 (L. Shyamal) | 48 s / 30 | arterial, cut-ins | 4.1 → 4.1 | 34.5 | 61.3 | 0 / 0 / 0 | 1 |
-| `ka_kadur` | Kadur–Chikmagalur, Karnataka | CC0 (L. Shyamal) | 48 s / 29.6 | rural highway, curves | 0 → 0 | 0 | 100 | 0 / 0 / 0 | 0 |
-| `tn_anamalai` | Anamalai, Tamil Nadu | CC BY-SA 3.0 (T. R. Shankar Raman) | 25 s / 25 | narrow rural road, oncoming | 8.4 → 8.4 | 29.5 | 62.1 | 2 / 2 / 0 | 0 |
-| `blr_iisc` | IISc campus, Bangalore | CC0 (L. Shyamal) | 86 s / 30 | pedestrians walking on the carriageway, two-wheelers | 23.5 → 22.7 | 53.6 | 23.8 | 0 / 0 / 0 | 0 |
-| `delhi_cattle` | Lutyens Delhi | CC BY-SA 3.0 (Fowler&fowler) | 45 s / 30* | cattle crossing at a traffic island (angled in-car camera, near stop) | 65.1 → 65.8 | 28.5 | 5.6 | 9 / 7 / 0 | 0 |
-| `hyd_traffic` | Hyderabad | CC BY-SA 4.0 (Oleg Yunakov) | 56 s / 60 | dense two-wheelers/autos at a signal — **filmed from inside an auto (robustness only)** | 39.3 → 34.9 | 55.7 | 9.4 | 8 / 4 / 0 | 1 |
-| `hp_rohtang_seg` | Rohtang Pass, Himachal | CC BY 3.0 (KSOFTECH) | 150 s / 30 (360p) | unpaved mountain road, queue — **motorcycle-mounted camera (robustness only)** | 39.8 → 38.1 | 49.6 | 12.4 | 5 / 8 / 5 | 0 |
+| `india_bangalore` | Bangalore, Nandidurga Rd | CC0 (L. Shyamal) | 127 s / 30 | dense mixed traffic, autos, signal queue | 5.1 → 7.2 | 86.3 | 6.5 | 2 / 1 / 4 | 12 |
+| `india_newbel` | Bangalore, New BEL Rd | CC0 (L. Shyamal) | 96 s / 30 | narrow road, pedestrians, oncoming | 13.1 → 14.5 | 38.6 | 46.8 | 1 / 0 / 5 | 1 |
+| `india_cvraman` | Bangalore, C V Raman Rd | CC0 (L. Shyamal) | 48 s / 30 | arterial, cut-ins | 4.1 → 4.1 | 39.9 | 56.0 | 0 / 0 / 0 | 1 |
+| `ka_kadur` | Kadur–Chikmagalur, Karnataka | CC0 (L. Shyamal) | 48 s / 29.6 | rural highway, curves | 0 → 0 | 0 | 100.0 | 0 / 0 / 0 | 0 |
+| `tn_anamalai` (prev. round) | Anamalai, Tamil Nadu | CC BY-SA 3.0 (T. R. Shankar Raman) | 25 s / 25 | narrow rural road, oncoming | 8.4 → 8.4 | 29.5 | 62.1 | 2 / 2 / 0 | 0 |
+| `blr_iisc` | IISc campus, Bangalore | CC0 (L. Shyamal) | 86 s / 30 | pedestrians walking on the carriageway, two-wheelers | 23.5 → 22.7 | 50.6 | 26.7 | 0 / 0 / 0 | 0 |
+| `delhi_cattle` | Lutyens Delhi | CC BY-SA 3.0 (Fowler&fowler) | 45 s / 30* | cattle crossing at a traffic island (angled in-car camera, near stop) | 65.1 → 65.8 | 30.5 | 3.7 | 9 / 7 / 0 | 0 |
+| `hyd_traffic` (prev. round) | Hyderabad | CC BY-SA 4.0 (Oleg Yunakov) | 56 s / 60 | dense two-wheelers/autos at a signal — **filmed from inside an auto (robustness only)** | 39.3 → 34.9 | 55.7 | 9.4 | 8 / 4 / 0 | 1 |
+| `hp_rohtang_seg` (prev. round) | Rohtang Pass, Himachal | CC BY 3.0 (KSOFTECH) | 150 s / 30 (360p) | unpaved mountain road, queue — **motorcycle-mounted camera (robustness only)** | 39.8 → 38.1 | 49.6 | 12.4 | 5 / 8 / 5 | 0 |
 | `sample_1`, `sample_2` | US highway (Udacity) | project video | 12 s + 10 s / 25 | highway regression | 0 → 0 | 0 | 100 | 0 / 0 / 0 | 0 |
 
 \* container reports 600 FPS; the pipeline estimates 29.98 FPS from frame timestamps.
@@ -237,6 +255,8 @@ cameras violate the car-mounted camera model; their numbers are reported for rob
   YOLO false positives (e.g. a striped tree trunk as `person`) propagate into cues.
 - Two-wheeler / hand-held camera footage (Hyderabad signal, Rohtang ride) violates the car-mounted geometry
   (camera height, corridor width); decisions there are shown for robustness only.
+- Accident detection is conservative and camera-only: a vehicle that fills the frame, motion-blurred, at contact range
+  is not detected, so a real ego rear-end was not confirmed (see §16).
 - Validation footage is limited to CC-licensed Commons clips (mostly Bangalore, daytime); no night drive, no
   intersection turns / U-turns, no Mumbai/Delhi city drive.
 
@@ -273,3 +293,72 @@ pedestrian/cow in path, pedestrian and cow crossing, motorcycle and car cut-in, 
 in its own lane, adjacent harmless vehicles, frame-edge vehicle, fully blocked road, both sides blocked, queue at a
 signal, recovery after BRAKE, no-flicker hysteresis, rider suppression, auto-rickshaw corridor geometry, and a
 real-image auto-rickshaw check (skipped if the Bangalore clip is not downloaded).
+Directional tests DIR1–DIR9 (harmless / drifting / entering oncoming vehicle, shoulder / close / crossing pedestrian,
+motorcycle overtaking, real cut-in, wrong-way vehicle) and accident tests ACC1–ACC12 (normal driving, hard braking,
+queue, brief contact, confirmed collision, latching, single-frame spike, reset, frame-edge truncation, congestion
+creep-to-stop, near-field reflection, ego rear-end) run in the same suite.
+
+## 15. Web app (demo, upload, events, live camera, emergency simulation)
+
+```powershell
+python app.py                       # desktop: http://localhost:8000
+python app.py --lan --https         # phone on the same Wi-Fi: https://<PC-LAN-IP>:8443 (self-signed certificate)
+```
+
+`app.py` (Flask) serves `web/` and calls the same pipeline — nothing is re-implemented in the browser.
+
+- **Demo** – processed drives from `outputs/` (only videos that currently exist), a player synced with per-frame
+  telemetry (`<name>_frames.json`): decision, reason, path status, speed, steering, nearest threat, distance, TTC;
+  a clickable decision timeline; **Upload** runs `main.run_pipeline` on the GPU with live progress and plays the result
+  (outputs go to `outputs/web/`). Videos are written as H.264 (`avc1`) so browsers can play them; older `mp4v`
+  renders are flagged.
+- **Events** – decision / behaviour / accident events with the "why did it brake here?" card and replay in the player.
+- **Live** – the page captures the camera (`getUserMedia`), sends ≤ 640 px JPEG frames to the PC one at a time
+  (self-throttling) and draws the returned decision, boxes, TTC, path and a mini BEV. FPS and latency shown are
+  measured. Browsers only allow the camera on `https://` or `localhost`, hence `--https` for phones (accept the
+  certificate warning once; `certs/` is gitignored). `python live_benchmark.py <video>` measures live throughput
+  against a running server and writes `outputs/live_benchmark.json`.
+- **Emergency** – contact settings stored locally in `config/emergency.json` (gitignored, editable, deletable),
+  browser geolocation or a clearly labelled DEMO LOCATION (never invented), nearby hospitals from OpenStreetMap
+  (Overpass API), and the simulated workflow panel with **Review event** / **Confirm emergency action**.
+- **System** – GPU / models / LAN addresses and a button that runs `scenario_tests.py`.
+- Dark / light theme, responsive from phone to desktop.
+
+## 16. Accident detection and emergency response (DEMO / SIMULATION)
+
+`accident.py` · `AccidentDetector` is deliberately conservative:
+
+- primary cues: `IMPACT` (in-corridor object < 2 m, closing fast **and tracked approaching ≥ 1 m within 1.5 s**),
+  `OBJ_COLLISION` (two road users newly overlapping at similar depth after converging), `DISRUPTION` (abrupt box-shape
+  change of a nearby vehicle, ignoring frame-edge truncation and occlusion); a primary cue must persist ≥ 3 frames in
+  0.5 s → `POSSIBLE`;
+- supporting cues: `JOLT` (frame-difference spike), `EGO_STOP` (abrupt stop);
+- `CONFIRMED` needs post-collision stillness in the world frame within 3 s, confidence ≥ 0.7 **and** physical evidence
+  (impact / jolt / abrupt stop) or two visual cues while the ego vehicle moves. Ego creeping to a halt in congestion is
+  not evidence. CONFIRMED stays latched until reset.
+
+`EmergencyService` — `detect_accident`, `get_location`, `find_nearby_hospital`, `prepare_emergency_message`,
+`request_user_confirmation`, `send_notification` — runs in **demo mode with a simulated notifier**: it shows
+*ACCIDENT DETECTED*, *SIMULATED SMS SENT*, the nearest hospital and *AMBULANCE REQUEST — SIMULATION*. **Nothing is
+sent and nobody is called**; a real provider would need authorisation, credentials outside Git and explicit user
+confirmation. In a real emergency call 112.
+
+Real-footage check: on a public-domain dashcam rear-end clip (Wikimedia Commons, first 30 s) the detector did **not**
+confirm the accident — in the last second before contact the cutting-in car fills the frame, heavily motion-blurred,
+and YOLOv8n no longer detects it (confidence < 0.2). The web demo therefore uses a clearly labelled demo trigger;
+the accident logic itself is covered by ACC1–ACC12.
+
+A second public-domain clip (multi-car rear-end collision on a highway, seen from a following car) is not confirmed
+either: the crash is between third-party vehicles far ahead; PathSense shows NO SAFE PATH while approaching the stopped
+vehicles. Both clips are on Wikimedia Commons, tagged public domain ("CCTV footage does not create a copyright"):
+[`The van in front suddenly changed lanes…`](https://commons.wikimedia.org/wiki/File:The_van_in_front_suddenly_changed_lanes_and_caused_the_vehicle_to_rear-end_collision.webm)
+(processed with `--max-frames 900`, the first 30 s) and
+[`Multiple cars rear-end collision on highway`](https://commons.wikimedia.org/wiki/File:Multiple_cars_rear-end_collision_on_highway.webm).
+Across the six Indian validation drives the detector produced no false accident confirmation.
+
+## 17. SIH presentation
+
+`PathSense_SIH_Presentation.pptx` (17 slides) is generated by `python presentation/build_presentation.py`; every
+number is read from `outputs/` at build time. Web captures: `node presentation/capture_web.mjs <dir>` (headless Edge,
+server running); icons: `presentation/make_icons.js` (react-icons, MIT).
+

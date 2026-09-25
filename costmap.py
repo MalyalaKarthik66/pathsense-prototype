@@ -178,7 +178,8 @@ class BEVCostmap:
         costmap: np.ndarray,
         projected_objects: List[Dict[str, Any]],
         canvas_size: int = 500,
-        planned_path: Optional[List[Tuple[float, float]]] = None
+        planned_path: Optional[List[Tuple[float, float]]] = None,
+        minimal: bool = False
     ) -> np.ndarray:
         """
         Renders an attractive, high-contrast visual BEV display from the costmap.
@@ -251,7 +252,9 @@ class BEVCostmap:
         cv2.arrowedLine(bev_canvas, (ego_px, vy1), (ego_px, vy2), (255, 255, 255), 2, cv2.LINE_AA, tipLength=0.4)
         cv2.putText(bev_canvas, "EGO", (ego_px - 14, vy1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (255, 255, 255), 1, cv2.LINE_AA)
 
-        # 7. Add Header Border
+        # 7. Add Header Border (omitted in minimal mode: the HUD draws its own caption)
+        if minimal:
+            return bev_canvas
         cv2.rectangle(bev_canvas, (0, 0), (canvas_size, 26), (15, 20, 25), -1)
         cv2.putText(bev_canvas, "BEV Costmap (-20m to +20m, 40m Ahead)", (10, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 215, 255), 1, cv2.LINE_AA)
         cv2.rectangle(bev_canvas, (0, 0), (canvas_size - 1, canvas_size - 1), (0, 215, 255), 1)

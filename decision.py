@@ -57,6 +57,16 @@ class DecisionState:
         vru_caution_distance_m: float = 15.0,
         steer_indicate_deg: float = 4.0,
         label_debounce_s: float = 0.3,      # NO SAFE PATH / STEER label must persist this long before it is shown
+        traffic_side: str = "left",         # India drives on the left: oncoming traffic is expected on the right (x > 0)
+        vru_near_m: float = 0.8,            # pedestrian/animal closer than this to the corridor edge -> SLOW DOWN
+        vehicle_near_m: float = 0.5,        # fast-closing same-direction vehicle this close to the corridor edge -> SLOW DOWN
+        wrong_way_near_m: float = 1.5,      # oncoming vehicle on the ego side of the road this close -> SLOW DOWN
+        approach_margin_m: float = 0.5,     # object moving towards the corridor, predicted within this -> SLOW DOWN
+        toward_speed_mps: float = 0.3,      # minimum lateral speed that counts as "moving towards the corridor"
+        predict_horizon_s: float = 3.0,
+        oncoming_enter_clear_m: float = 0.5,  # oncoming vehicle on its own side: ENTERING only at the corridor edge...
+        oncoming_enter_speed_mps: float = 1.0,  # ...and moving in this fast
+        oncoming_approach_clear_m: float = 1.0,  # otherwise at most APPROACHING, and only this close
         caution_on_s: float = 0.3,
         brake_on_s: float = 0.2,
         brake_hold_s: float = 1.0,
@@ -73,6 +83,12 @@ class DecisionState:
         self.emergency_ttc, self.brake_ttc, self.brake_range, self.caution_ttc = emergency_ttc_s, brake_ttc_s, brake_range_m, caution_ttc_s
         self.vru_brake, self.vru_caution = vru_brake_distance_m, vru_caution_distance_m
         self.steer_indicate = steer_indicate_deg
+        self.traffic_side = traffic_side
+        self.vru_near, self.vehicle_near, self.wrong_way_near = vru_near_m, vehicle_near_m, wrong_way_near_m
+        self.approach_margin, self.toward_speed, self.horizon = approach_margin_m, toward_speed_mps, predict_horizon_s
+        self.onc_enter_clear, self.onc_enter_speed = oncoming_enter_clear_m, oncoming_enter_speed_mps
+        self.onc_approach_clear = oncoming_approach_clear_m
+        self.ego_speed: Optional[float] = None
         self.n_caution_on, self.n_brake_on = f(caution_on_s), f(brake_on_s)
         self.n_brake_hold, self.n_brake_release, self.n_caution_release = f(brake_hold_s), f(brake_release_s), f(caution_release_s)
         self.n_label = f(label_debounce_s)
@@ -99,6 +115,51 @@ class DecisionState:
         if y >= ys[-1]:
             return float(xs[-1])
         return float(np.interp(y, ys, xs))
+
+    def path_threat(self, o: Dict[str, Any], reach: float, corridor_path: List[Tuple[float, float]]) -> Dict[str, Any]:
+        """
+        Threat to the ego path (not mere proximity). Relative to the nearer corridor centreline (straight ahead or the
+        selected arc): current clearance to the corridor edge, lateral motion towards/away from it, predicted clearance
+        at closest approach (lateral velocity x min(TTC, horizon)), direction of travel and road side.
+        conflict: IN_PATH | ENTERING | APPROACHING | NEAR | CLEAR
+        """
+        x, y = o["bev_x_m"], o["bev_y_m"]
+        x_arc = self._path_x_at(corridor_path, y)
+        ref = 0.0 if abs(x) <= abs(x - x_arc) else x_arc
+        dx = x - ref
+        clearance = abs(dx) - reach
+        vx = o.get("lat_vel_mps")
+        toward = vx is not None and dx * vx < 0 and abs(vx) >= self.toward_speed
+        away = vx is not None and dx * vx > 0 and abs(vx) >= self.toward_speed
+        ttc = o.get("ttc_sec")
+        t_h = min(ttc, self.horizon) if ttc is not None else self.horizon
+        dx_pred = dx + (vx or 0.0) * t_h
+        pred_clearance = (-reach if np.sign(dx_pred) != np.sign(dx) else abs(dx_pred) - reach) if toward else clearance
+        closing = o.get("closing_speed_mps") or 0.0
+        oncoming = o.get("behavior") == "ONCOMING" or (
+            self.ego_speed is not None and self.ego_speed >= 2.0 and closing >= self.ego_speed + 3.0)
+        # side of the road: with left-hand traffic, oncoming traffic is expected on the right (x > 0)
+        expected_side = (x > 0) if self.traffic_side == "left" else (x < 0)
+        if clearance < 0:
+            conflict = "IN_PATH"
+        elif toward and pred_clearance < 0:
+            conflict = "ENTERING"
+        elif toward and pred_clearance < self.approach_margin:
+            conflict = "APPROACHING"
+        else:
+            conflict = "NEAR" if clearance < max(self.vru_near, self.wrong_way_near, self.vehicle_near) else "CLEAR"
+        # Oncoming vehicle on its own side of the road: at high closing speed the monocular lateral velocity is
+        # dominated by depth-scale error (a passing vehicle's estimated x shrinks as it approaches), so a normal
+        # pass would be projected into the corridor. Require it to be at the corridor edge and moving in clearly.
+        if oncoming and expected_side and conflict in ("ENTERING", "APPROACHING"):
+            if clearance < self.onc_enter_clear and abs(vx or 0.0) >= self.onc_enter_speed:
+                conflict = "ENTERING"
+            elif clearance < self.onc_approach_clear:
+                conflict = "APPROACHING"
+            else:
+                conflict = "NEAR" if clearance < max(self.vru_near, self.wrong_way_near, self.vehicle_near) else "CLEAR"
+        return {"conflict": conflict, "clearance": clearance, "pred_clearance": pred_clearance, "toward": toward,
+                "away": away, "oncoming": oncoming, "wrong_way": oncoming and not expected_side, "lat_vel": vx}
 
     @staticmethod
     def _key_snapshot(o: Dict[str, Any]) -> Dict[str, Any]:
@@ -132,6 +193,7 @@ class DecisionState:
             # active even while the planner steers around it (conservative)
             lat = min(abs(x), abs(x - self._path_x_at(corridor_path, y)))
             o["in_corridor"] = bool(lat < reach)  # consumed by the HUD for box colouring
+            o["path_conflict"] = "IN_PATH" if lat < reach else "CLEAR"
             ttc = o.get("ttc_sec")
             vru = cls in VULNERABLE
             beh = o.get("behavior")
@@ -161,15 +223,32 @@ class DecisionState:
                     consider(CAUTION, "Slow vehicle ahead", f"{tag} nearly stopped at {y:.1f} m", o)
                 elif y < self.follow:
                     consider(CAUTION, "Following closely", f"following {tag} at {y:.1f} m", o)
-            elif beh in ("CUT-IN", "CROSSING") and lat < reach + 0.8 and y < 15.0:
-                title = f"{what} cut-in" if beh == "CUT-IN" else f"{kind} crossing"
-                consider(CAUTION, title, f"{tag} moving into path at {y:.1f} m{ttc_s}", o)
-            elif beh == "ONCOMING" and lat < reach + 1.0 and y < 20.0:
-                consider(CAUTION, "Oncoming vehicle", f"{tag} oncoming near path at {y:.0f} m{ttc_s}", o)
-            elif vru and lat < reach + self.vru_margin and y < self.vru_caution:
-                consider(CAUTION, f"{kind} near path", f"{tag} near path ({y:.0f} m)", o)
-            elif ttc is not None and ttc < self.brake_ttc and lat < reach + self.beside_margin and y < 10.0:
-                consider(CAUTION, "Vehicle closing beside path", f"{tag} closing beside path (TTC {ttc:.1f}s)", o)
+            else:
+                # Outside the corridor: escalate only for a THREAT TO THE EGO PATH (relative motion + predicted
+                # overlap), never for mere presence. Oncoming traffic holding its own side and pedestrians walking
+                # parallel on the shoulder are monitored, not braked for.
+                pt = self.path_threat(o, reach, corridor_path)
+                o["path_conflict"] = pt["conflict"]
+                mover = "Oncoming vehicle" if pt["oncoming"] and not vru else (kind if vru else what)
+                if pt["conflict"] == "ENTERING":
+                    urgent = (ttc is not None and ttc < self.brake_ttc and y < self.brake_range) or (vru and y < self.vru_brake)
+                    if beh == "CUT-IN":
+                        title = f"{what} cut-in"
+                    elif beh == "CROSSING" or vru:
+                        title = f"{kind} crossing into path"
+                    else:
+                        title = f"{mover} entering path"
+                    consider(BRAKE if urgent else CAUTION, title, f"{tag} moving into path at {y:.1f} m{ttc_s}", o)
+                elif pt["conflict"] == "APPROACHING" and y < self.vru_caution:
+                    consider(CAUTION, f"{mover} drifting toward path", f"{tag} moving towards path at {y:.1f} m{ttc_s}", o)
+                elif pt["conflict"] == "NEAR" and y < self.vru_caution:
+                    if vru and pt["clearance"] < self.vru_near and not pt["away"]:
+                        consider(CAUTION, f"{kind} close to path", f"{tag} {pt['clearance']:.1f} m from path ({y:.0f} m)", o)
+                    elif not vru and pt["wrong_way"] and pt["clearance"] < self.wrong_way_near:
+                        consider(CAUTION, "Wrong-way vehicle near path", f"{tag} oncoming on the ego side ({y:.0f} m{ttc_s})", o)
+                    elif not vru and not pt["oncoming"] and pt["clearance"] < self.vehicle_near \
+                            and ttc is not None and ttc < self.brake_ttc and y < 10.0:
+                        consider(CAUTION, "Vehicle closing beside path", f"{tag} closing beside path (TTC {ttc:.1f}s)", o)
 
         if all_blocked:
             consider(BRAKE, "All candidate trajectories blocked", "all candidate paths blocked",
@@ -192,6 +271,7 @@ class DecisionState:
             self.follow = max(self.min_follow, self.headway * ego_speed_mps)
         else:
             self.follow = self.follow_default
+        self.ego_speed = ego_speed_mps if ego_speed_mps is not None and np.isfinite(ego_speed_mps) else None
         level, reason, key_id, emergency = self.assess(objects, path, all_blocked)
         a = self.last_assessment
         self.frame += 1

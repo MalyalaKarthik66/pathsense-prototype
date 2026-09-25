@@ -45,8 +45,8 @@ DEFAULT_PLAN = [
   "clip": "india_bangalore",
   "t0": 0,
   "t1": 8,
-  "title": "Pedestrian at road edge: BRAKE -> recovery",
-  "what": "BRAKE held 1 s, 'Clearing after BRAKE', back to GO; planner steers right around the pedestrian"
+  "title": "Pedestrian in path: BRAKE -> recovery",
+  "what": "BRAKE held 1 s, 'Clearing after BRAKE', auto-rickshaw entering path -> SLOW DOWN, back to GO"
  },
  {
   "clip": "india_newbel",
@@ -60,28 +60,28 @@ DEFAULT_PLAN = [
   "t0": 3,
   "t1": 8.5,
   "title": "Slow vehicle ahead -> collision risk",
-  "what": "SLOW DOWN (slow vehicle ahead) escalates to BRAKE at TTC < 1 s, then clears"
+  "what": "SLOW DOWN (slow vehicle ahead) escalates to BRAKE for 1 s, then clears"
  },
  {
   "clip": "india_bangalore",
   "t0": 57,
   "t1": 62,
   "title": "Pedestrians at the road edge",
-  "what": "SLOW DOWN 'Pedestrian near path' - no BRAKE for people outside the corridor"
+  "what": "people walking beside the corridor do not trigger BRAKE; SLOW DOWN is for the lead vehicle"
  },
  {
   "clip": "india_bangalore",
   "t0": 74,
   "t1": 82,
   "title": "Dense mixed traffic, autos, signal queue",
-  "what": "auto (est.) labels, 'Following closely', CUT-IN cue, BRAKE for a closing car"
+  "what": "auto (est.) labels, 'Following closely' in the queue, BRAKE (1 s) for a closing car"
  },
  {
   "clip": "india_newbel",
   "t0": 71,
   "t1": 74.5,
   "title": "Candidate trajectory: STEER LEFT",
-  "what": "planner selects an offset arc around obstacle cost (BEV panel)"
+  "what": "planner selects an offset arc (STEER LEFT), then SLOW DOWN for a pedestrian ahead"
  },
  {
   "clip": "delhi_cattle",
@@ -103,7 +103,9 @@ DEFAULT_PLAN = [
 if __name__ == "__main__":
     # optional custom plan: python showcase.py plan.json  ([{"clip","t0","t1","title","what"}, ...])
     plan = json.load(open(sys.argv[1])) if len(sys.argv) > 1 else DEFAULT_PLAN
-    out = cv2.VideoWriter(f"{REPO}/outputs/pathsense_showcase.mp4", cv2.VideoWriter_fourcc(*"mp4v"), FPS, (W, H))
+    out = cv2.VideoWriter(f"{REPO}/outputs/pathsense_showcase.mp4", cv2.VideoWriter_fourcc(*"avc1"), FPS, (W, H))  # H.264: plays in browsers
+    if not out.isOpened():
+        out = cv2.VideoWriter(f"{REPO}/outputs/pathsense_showcase.mp4", cv2.VideoWriter_fourcc(*"mp4v"), FPS, (W, H))
     for f in card(["PathSense - SIH PS 26037 demo reel",
                    "Camera-only research/hackathon prototype: candidate trajectory + decision recommendation",
                    "Edited selection of UNMODIFIED pipeline output; each segment is labelled with its source clip and time",

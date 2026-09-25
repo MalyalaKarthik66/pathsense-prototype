@@ -185,14 +185,15 @@ class DynamicArcPlanner:
         costmap_builder: BEVCostmap,
         best_path: List[Tuple[float, float]],
         steering_deg: float,
-        canvas_size: int = 500
+        canvas_size: int = 500,
+        minimal: bool = False
     ) -> np.ndarray:
         """
         Renders BEV costmap with candidate paths (faint lines) and selected path (bold green).
         """
         # Base costmap
         bev_canvas = costmap_builder.render_bev_image(
-            costmap, projected_objects, canvas_size=canvas_size, planned_path=None
+            costmap, projected_objects, canvas_size=canvas_size, planned_path=None, minimal=minimal
         )
 
         def to_pixel(xm: float, ym: float) -> Tuple[int, int]:
@@ -210,6 +211,8 @@ class DynamicArcPlanner:
         path_color = (0, 255, 0) if abs(steering_deg) < 4.0 else (0, 215, 255)
         cv2.polylines(bev_canvas, [np.array(poly_best, dtype=np.int32)], isClosed=False, color=path_color, thickness=3, lineType=cv2.LINE_AA)
 
+        if minimal:  # the HUD shows steering in its own panel
+            return bev_canvas
         # 3. Steering Angle Gauge at top of BEV panel
         steer_str = f"Steering: {steering_deg:+.1f} deg"
         dir_str = "CENTER" if abs(steering_deg) < 1.5 else ("RIGHT ->" if steering_deg > 0 else "<- LEFT")

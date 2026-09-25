@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0e11">
+  <title>PathSense</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0e11'/%3E%3Cpath d='M9 26 L15 6 M23 26 L17 6' stroke='%232dd4bf' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M16 24 Q16 16 20 10' stroke='%23fff' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3 7h3l2-3h8l2 3h3v13H3z"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-sos" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 3 2 20h20z"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 10v4.5M12 17.5h.01"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4M6 10l6-6 6 6M4 20h16"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#12161b" stroke="#262d36"/><path d="M9 26 L15 6 M23 26 L17 6" stroke="#2dd4bf" stroke-width="2.6" stroke-linecap="round"/><path d="M16 24 Q16 16 20.5 10" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+    <div>
+      <div class="wordmark">PathSense</div>
+      <div class="tagline">Adaptive Path Planning &amp; Collision Avoidance</div>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" data-view="demo" aria-selected="true"><svg><use href="#i-play"/></svg>Demo</button>
+    <button class="tab" role="tab" data-view="live"><svg><use href="#i-cam"/></svg>Live</button>
+    <button class="tab" role="tab" data-view="events"><svg><use href="#i-list"/></svg>Events</button>
+    <button class="tab" role="tab" data-view="emergency"><svg><use href="#i-sos"/></svg>Emergency</button>
+    <button class="tab" role="tab" data-view="system"><svg><use href="#i-cpu"/></svg>System</button>
+  </nav>
+  <button class="icon-btn" id="themeBtn" aria-label="Switch colour theme"><svg><use href="#i-sun"/></svg></button>
+</header>
+<p class="notice"><strong>Research prototype</strong> — not a certified autonomous driving or safety system. Monocular distances are estimates. Emergency features run in simulation only.</p>
+
+<main>
+  <!-- ============================== DEMO ============================== -->
+  <section class="view active" id="view-demo" role="tabpanel">
+    <div class="grid-demo">
+      <div>
+        <div class="player" id="player">
+          <video id="video" controls playsinline preload="metadata"></video>
+          <div class="player-empty" id="playerEmpty">
+            <div>
+              <div class="eyebrow" style="color:#2dd4bf">PathSense Demo</div>
+              <h3>Choose a processed drive or upload your own</h3>
+              <p>Every decision shown here is produced by the actual pipeline: detection → depth → TTC → BEV → planner → decision.</p>
+              <button class="btn btn-primary" data-action="upload"><svg><use href="#i-up"/></svg>Upload video</button>
+            </div>
+          </div>
+        </div>
+        <div class="timeline-wrap">
+          <div class="row" style="justify-content:space-between">
+            <span class="eyebrow">Decision timeline · click to seek</span>
+            <span class="muted mono" id="tlTime" style="font-size:13px"></span>
+          </div>
+          <div class="timeline" id="timeline" style="margin-top:8px" aria-label="Decision timeline"></div>
+          <div class="legend">
+            <span style="--c:var(--go)">GO</span><span style="--c:var(--steer)">STEER</span>
+            <span style="--c:var(--slow)">SLOW DOWN</span><span style="--c:var(--brake)">BRAKE</span>
+            <span style="--c:var(--nsp)">NO SAFE PATH</span><span style="--c:var(--text)">Accident marker</span>
+          </div>
+        </div>
+      </div>
+
+      <aside class="card decision" aria-live="polite">
+        <div class="decision-head">
+          <div class="row" style="justify-content:space-between">
+            <span class="eyebrow">Decision</span>
+            <span class="chip" id="dPath">PATH —</span>
+          </div>
+          <div class="decision-label" id="dLabel"><span class="dot"></span><span id="dLabelText">—</span></div>
+          <div class="decision-title" id="dTitle">Select a video</div>
+        </div>
+        <div class="kv">
+          <div><div class="k">Ego speed</div><div class="v" id="dSpeed">—</div></div>
+          <div><div class="k">Steering</div><div class="v" id="dSteer">—</div></div>
+          <div><div class="k">Nearest threat</div><div class="v" id="dThreat">—</div></div>
+          <div><div class="k">Distance</div><div class="v" id="dDist">—</div></div>
+          <div><div class="k">TTC</div><div class="v" id="dTTC">—</div></div>
+          <div><div class="k">Objects</div><div class="v" id="dObjs">—</div></div>
+        </div>
+        <div class="decision-foot">
+          <div id="dReason">Reason appears here while the video plays.</div>
+          <div id="dAcc" style="margin-top:8px"></div>
+          <div style="margin-top:10px;font-size:12px">Speed from monocular ego-motion; distance from road-plane-calibrated depth (estimates).</div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="section-title">
+      <div><h2>Processed drives</h2><p>Videos currently in <span class="mono">outputs/</span> and your uploads</p></div>
+      <button class="btn btn-primary" data-action="upload"><svg><use href="#i-up"/></svg>Upload</button>
+    </div>
+    <div class="library" id="library"></div>
+  </section>
+
+  <!-- ============================== LIVE ============================== -->
+  <section class="view" id="view-live" role="tabpanel">
+    <div class="live-grid">
+      <div>
+        <div class="live-stage" id="liveStage">
+          <video id="liveVideo" playsinline muted autoplay></video>
+          <canvas id="liveCanvas"></canvas>
+          <div class="live-hud">
+            <div class="live-pill" id="livePill" hidden>—</div>
+            <div class="live-meta" id="liveMeta" hidden></div>
+          </div>
+          <div class="live-bottom" id="liveBottom" hidden><div class="t" id="liveTitle"></div><div class="d" id="liveReason"></div></div>
+          <div class="player-empty" id="liveEmpty">
+            <div>
+              <div class="eyebrow" style="color:#2dd4bf">Live camera</div>
+              <h3>Point the camera at the road</h3>
+              <p>Frames go to this PC, where the PathSense pipeline runs on them. Results are drawn here.</p>
+              <button class="btn btn-primary" id="liveStart"><svg><use href="#i-cam"/></svg>Start camera</button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" id="liveStop" disabled>Stop</button>
+          <button class="btn btn-ghost" id="liveFlip">Switch camera</button>
+          <span class="muted" style="font-size:13px" id="liveStatus">Idle</span>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="card card-pad">
+          <div class="eyebrow">Bird's-eye view</div>
+          <canvas id="bevCanvas" width="320" height="320" style="margin-top:10px"></canvas>
+          <div class="muted" style="font-size:12.5px;margin-top:8px">Ego at bottom · planned path in teal · detected objects with estimated positions.</div>
+        </div>
+        <div class="card card-pad">
+          <div class="eyebrow">Measured performance</div>
+          <div class="kv" style="margin:10px -20px -20px">
+            <div><div class="k">Live FPS</div><div class="v" id="lFps">—</div></div>
+            <div><div class="k">Round trip</div><div class="v" id="lRtt">—</div></div>
+            <div><div class="k">Processing</div><div class="v" id="lProc">—</div></div>
+            <div><div class="k">Resolution</div><div class="v" id="lRes">—</div></div>
+          </div>
+        </div>
+        <div class="callout warn" id="liveHelp">
+          <strong>Phone camera needs HTTPS.</strong> Browsers only grant camera access on <code>https://</code> or <code>localhost</code>.
+          On the PC run <code>python app.py --lan --https</code>, then open <code>https://&lt;PC-IP&gt;:8443</code> on the phone (same Wi-Fi) and accept the self-signed certificate warning.
+          <div id="liveUrls" style="margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== EVENTS ============================== -->
+  <section class="view" id="view-events" role="tabpanel">
+    <div class="section-title" style="margin-top:0">
+      <div><h2 id="evTitle">Events</h2><p>Decision changes, behaviour cues and accident alerts logged by the pipeline. Select one to jump to it.</p></div>
+      <div class="filters" id="evFilters">
+        <button class="filter" aria-pressed="true" data-f="all">All</button>
+        <button class="filter" aria-pressed="false" data-f="brake">Brake</button>
+        <button class="filter" aria-pressed="false" data-f="decision">Decisions</button>
+        <button class="filter" aria-pressed="false" data-f="behavior">Behaviour</button>
+        <button class="filter" aria-pressed="false" data-f="accident">Accident</button>
+      </div>
+    </div>
+    <div class="grid-demo">
+      <ul class="events" id="eventList"></ul>
+      <aside class="card card-pad inspector decision">
+        <div class="eyebrow">Event inspector</div>
+        <pre id="evCard" style="margin-top:12px">Select an event.</pre>
+        <div class="row" style="margin-top:14px"><button class="btn btn-primary" id="evPlay" disabled><svg><use href="#i-play"/></svg>Replay in player</button></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============================== EMERGENCY ============================== -->
+  <section class="view" id="view-emergency" role="tabpanel">
+    <div class="callout warn" style="margin-bottom:20px">
+      <strong>DEMO / SIMULATION MODE.</strong> PathSense never calls emergency services or sends messages automatically. Nothing on this page contacts a real person, hospital or ambulance.
+      In a real emergency call <strong>112</strong> yourself.
+    </div>
+    <div class="grid-2">
+      <div class="card card-pad">
+        <h2 style="margin:0 0 4px;font-size:18px">Emergency contact</h2>
+        <p class="muted" style="margin:0 0 16px;font-size:13.5px">Stored only on this PC (<span class="mono">config/emergency.json</span>, not committed to Git).</p>
+        <form class="form" id="contactForm" autocomplete="off">
+          <div class="field"><label for="c_name">Contact name</label><input id="c_name" name="contact_name"></div>
+          <div class="field"><label for="c_phone">Contact phone</label><input id="c_phone" name="contact_phone" inputmode="tel"></div>
+          <div class="field"><label for="c_email">Contact email</label><input id="c_email" name="contact_email" type="email"></div>
+          <div class="field"><label for="c_driver">Driver name</label><input id="c_driver" name="driver_name"></div>
+          <div class="field"><label for="c_vehicle">Vehicle</label><input id="c_vehicle" name="vehicle" placeholder="e.g. KA-01-AB-1234"></div>
+          <div></div>
+          <div class="field"><label for="c_lat">Demo location latitude</label><input id="c_lat" name="demo_lat" inputmode="decimal" placeholder="optional"></div>
+          <div class="field"><label for="c_lon">Demo location longitude</label><input id="c_lon" name="demo_lon" inputmode="decimal" placeholder="optional"></div>
+        </form>
+        <div class="row" style="margin-top:16px">
+          <button class="btn btn-primary" id="cSave">Save</button>
+          <button class="btn" id="cDelete">Delete</button>
+          <span class="muted" id="cMsg" style="font-size:13px"></span>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="card card-pad">
+          <h2 style="margin:0 0 4px;font-size:18px">Location &amp; nearby hospitals</h2>
+          <p class="muted" style="margin:0 0 14px;font-size:13.5px">Uses browser geolocation with your permission, otherwise the DEMO LOCATION above (clearly labelled). Hospitals come from OpenStreetMap.</p>
+          <div class="row"><button class="btn" id="geoBtn">Use my location</button><span class="muted" id="geoMsg" style="font-size:13px"></span></div>
+          <ul class="list" id="hospList" style="margin-top:14px"></ul>
+        </div>
+        <div class="card card-pad">
+          <h2 style="margin:0 0 4px;font-size:18px">Run the emergency workflow</h2>
+          <p class="muted" style="margin:0 0 14px;font-size:13.5px">Shows exactly what would happen after a CONFIRMED accident — in simulation.</p>
+          <button class="btn btn-danger" id="emTrigger"><svg><use href="#i-sos"/></svg>Simulate accident alert</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== SYSTEM ============================== -->
+  <section class="view" id="view-system" role="tabpanel">
+    <div class="card card-pad">
+      <div class="eyebrow">Pipeline (per frame)</div>
+      <div class="pipeline" style="margin-top:12px">
+        <span class="node">Camera</span><span class="arrow">→</span><span class="node">YOLOv8 + ByteTrack</span><span class="arrow">→</span>
+        <span class="node">Depth (road-plane)</span><span class="arrow">→</span><span class="node">TTC</span><span class="arrow">→</span>
+        <span class="node">Ego-motion</span><span class="arrow">→</span><span class="node">BEV costmap</span><span class="arrow">→</span>
+        <span class="node">17-arc planner</span><span class="arrow">→</span><span class="node">Behaviour + path threat</span><span class="arrow">→</span>
+        <span class="node" style="border-color:var(--accent)">Decision</span><span class="arrow">→</span><span class="node">Accident monitor</span>
+      </div>
+    </div>
+    <div class="stat-grid" id="sysStats" style="margin-top:20px"></div>
+    <div class="grid-2" style="margin-top:20px">
+      <div class="card card-pad">
+        <div class="row" style="justify-content:space-between">
+          <div><h2 style="margin:0;font-size:18px">Safety regression suite</h2><p class="muted" style="margin:4px 0 0;font-size:13.5px">scenario_tests.py — synthetic scenarios with expected decisions</p></div>
+          <button class="btn btn-primary" id="runTests">Run tests</button>
+        </div>
+        <div id="testSummary" style="margin-top:14px;font-weight:700"></div>
+        <pre id="testList" class="mono" style="margin-top:10px;max-height:360px;overflow:auto;font-size:12px;white-space:pre-wrap"></pre>
+      </div>
+      <div class="card card-pad">
+        <h2 style="margin:0 0 10px;font-size:18px">Runtime</h2>
+        <ul class="list" id="sysInfo"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- upload modal -->
+<div class="modal" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="upTitle">
+  <div class="modal-card">
+    <div class="modal-head"><h3 id="upTitle">Process a video</h3><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="modal-body">
+      <label class="drop" id="drop">
+        <input type="file" id="fileInput" accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.m4v" hidden>
+        <div style="font-weight:700">Drop a dashcam video here or tap to choose</div>
+        <div class="muted" style="font-size:13px;margin-top:6px">MP4, MOV, AVI, MKV, WEBM · processed on this PC's GPU</div>
+      </label>
+      <div id="upProgress" hidden style="margin-top:18px">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><strong id="upStage">Uploading</strong><span class="mono muted" id="upPct">0%</span></div>
+        <div class="progress"><div id="upBar"></div></div>
+        <div class="stages" id="upStages">
+          <span class="stage" data-s="upload">Upload</span><span class="stage" data-s="init">Load models</span>
+          <span class="stage" data-s="process">Detect · Depth · Plan · Decide</span><span class="stage" data-s="render">Render &amp; events</span>
+        </div>
+        <div class="muted mono" id="upDetail" style="font-size:12.5px;margin-top:12px"></div>
+        <div class="row" style="margin-top:16px"><button class="btn" id="upCancel">Cancel</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- emergency modal -->
+<div class="modal emergency" id="emModal" role="alertdialog" aria-modal="true" aria-labelledby="emTitle">
+  <div class="modal-card">
+    <div class="em-head"><h3 id="emTitle">ACCIDENT DETECTED</h3><p>DEMO / SIMULATION — nothing has been sent or called</p></div>
+    <div class="modal-body" id="emBody"></div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

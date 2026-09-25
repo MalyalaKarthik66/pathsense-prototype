@@ -40,6 +40,7 @@ from overlay import HUDOverlay
 from decision import DecisionState
 from behavior import BehaviorAnalyzer
 from autorickshaw import AutoRickshawClassifier
+from accident import AccidentDetector, EmergencyService, CONFIRMED, POSSIBLE
 from events import EventLogger, draw_timeline, replay as replay_event
 
 DEFAULT_FPS = 25.0
@@ -107,7 +108,10 @@ def run_pipeline(
     horizon_ratio: float = 0.55,
     camera_height_m: float = 1.30,
     auto_geometry: bool = True,
-    auto_classifier: bool = True
+    auto_classifier: bool = True,
+    progress_cb=None,
+    cancel_event=None,
+    accident_detection: bool = True
 ) -> Dict[str, Any]:
     print("=" * 70)
     print("  PROJECT PATHSENSE: AUTONOMOUS VEHICLE PERCEPTION & PLANNING")
@@ -194,6 +198,10 @@ def run_pipeline(
     if auto_classifier and not auto_cls.enabled:
         print(f"  [Warning] auto-rickshaw classifier disabled ({auto_cls.error}); keeping YOLO labels")
     event_log = EventLogger(input_video, fps)
+    accident = AccidentDetector(fps=fps, frame_width=width) if accident_detection else None
+    emergency = EmergencyService()  # demo mode: simulated notifications only
+    accident_status, prev_small, accident_log = {"state": "NORMAL", "confidence": 0.0, "cues": []}, None, []
+    frames_log = []
     geometry_synced = False
 
     # Optional precomputed depth cache for instant benchmarking
@@ -207,11 +215,16 @@ def run_pipeline(
 
     # 2. Prepare Output Video Writer
     os.makedirs(os.path.dirname(os.path.abspath(output_video)), exist_ok=True)
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(output_video, fourcc, fps, (out_w, out_h))
-    if not writer.isOpened():
+    # H.264 ('avc1') so the result plays directly in the browser; fall back to MPEG-4 Part 2 ('mp4v')
+    writer, video_codec = None, None
+    for code in ("avc1", "mp4v"):
+        writer = cv2.VideoWriter(output_video, cv2.VideoWriter_fourcc(*code), fps, (out_w, out_h))
+        if writer.isOpened():
+            video_codec = code
+            break
+    if writer is None or not writer.isOpened():
         cap.release()
-        raise IOError(f"Could not open video writer for {output_video} (mp4v codec). Try an output path ending in .mp4")
+        raise IOError(f"Could not open a video writer for {output_video}. Try an output path ending in .mp4")
 
     # 3. Execution Loop
     print("\n[Processing] Starting end-to-end processing...")
@@ -326,10 +339,33 @@ def run_pipeline(
         event_log.log_frame(frame_idx, decision_out, steer_deg, smooth_spd)
         stage_time["decision"] += time.time() - t
 
+        # F3. Accident detection (multi-cue, temporally confirmed) + simulated emergency workflow
+        t = time.time()
+        small = cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (160, 90), interpolation=cv2.INTER_AREA)
+        jolt = float(cv2.absdiff(small, prev_small).mean()) if prev_small is not None else None
+        prev_small = small
+        if accident is not None:
+            prev_state = accident_status["state"]
+            accident_status = accident.update(frame_idx, projected_objs, smooth_spd, jolt)
+            if accident_status["state"] == POSSIBLE and prev_state == "NORMAL":
+                event_log.log_accident(frame_idx, accident_status, None)
+            if accident_status["state"] == CONFIRMED and prev_state != CONFIRMED:
+                loc = emergency.get_location()
+                ev = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "confidence": accident_status["confidence"]}
+                hospitals = emergency.find_nearby_hospital(loc["lat"], loc["lon"]) if loc["lat"] is not None else \
+                    {"source": None, "results": [], "error": "no location (configure a DEMO LOCATION or use the web app)"}
+                msg = emergency.prepare_emergency_message(ev, loc)
+                workflow = {"mode": "DEMO / SIMULATION", "location": loc, "message": msg,
+                            "notification": emergency.send_notification(msg), "hospitals": hospitals,
+                            "ambulance_request": "SIMULATED - READY FOR CONFIRMATION (nothing was called)"}
+                event_log.log_accident(frame_idx, accident_status, workflow)
+                accident_log.append({"frame": frame_idx, **accident_status, "workflow": workflow})
+        stage_time["accident"] += time.time() - t
+
         # G. Render BEV Image with Planned Path
         t = time.time()
         bev_image = planner.render_bev_with_plan(
-            cost_grid, projected_objs, costmap_builder, best_path, steer_deg, canvas_size=340
+            cost_grid, projected_objs, costmap_builder, best_path, steer_deg, canvas_size=340, minimal=True
         )
 
         # H. HUD Cockpit Compositor
@@ -345,7 +381,8 @@ def run_pipeline(
             total_frames=display_total,
             fps=rolling_fps,
             planner_blocked=planner.all_blocked,
-            decision=decision_out
+            decision=decision_out,
+            accident=accident_status
         )
         if hud_frame.shape[:2] != (out_h, out_w):
             hud_frame = cv2.resize(hud_frame, (out_w, out_h))
@@ -368,6 +405,21 @@ def run_pipeline(
         stats["decision_labels"][decision_out["label"]] += 1
         stats["decision_states"][decision_out["state"]] += 1
         stats["frames_with_critical"] += int(any(o["hazard_level"] == "CRITICAL" for o in processed_objects))
+        k = decision_out.get("key") or {}
+        frames_log.append({"f": frame_idx, "label": decision_out["label"], "title": decision_out.get("title", ""),
+                           "path": decision_out.get("path_status"), "threats": decision_out.get("threats", 0),
+                           "steer": round(float(steer_deg), 1), "speed": round(float(smooth_spd), 1),
+                           "objects": len(projected_objs),
+                           "key": {"id": k.get("track_id"), "cls": k.get("class_name"),
+                                   "dist": None if k.get("distance_m") is None else round(k["distance_m"], 1),
+                                   "ttc": None if k.get("ttc_s") is None else round(k["ttc_s"], 1),
+                                   "beh": k.get("behavior")} if k else None,
+                           "acc": accident_status["state"] if accident_status["state"] != "NORMAL" else None})
+        if progress_cb is not None:
+            progress_cb({"frame": frame_idx + 1, "total": frames_to_process, "label": decision_out["label"],
+                         "fps": rolling_fps})
+        if cancel_event is not None and cancel_event.is_set():
+            break
         if decision_out["state"] == "BRAKE" and brake_start is None:
             brake_start = (frame_idx, decision_out["reason"])
         elif decision_out["state"] != "BRAKE" and brake_start is not None:
@@ -445,6 +497,12 @@ def run_pipeline(
         "depth_geometry": depth_estimator.geometry,
         "depth_heuristic_fallback_frames": depth_estimator.frames_heuristic_fallback,
         "behavior_counts": {k: v for k, v in behaviors.counts.items()},
+        "video_codec": video_codec,
+        "accident": {"enabled": accident is not None,
+                     "possible_events": accident.possible_events if accident else 0,
+                     "unconfirmed_events": accident.unconfirmed_events if accident else 0,
+                     "confirmed": [{"frame": a["frame"], "time_s": round(a["frame"] / fps, 2), "confidence": a["confidence"],
+                                    "cues": a["cues"]} for a in accident_log]},
         "auto_rickshaw": {"enabled": auto_cls.enabled, "confirmed_tracks": auto_cls.confirmed_tracks,
                           "crops_classified": auto_cls.classified_crops},
         "decision_events": sum(1 for e in event_log.events if e["type"] == "decision"),
@@ -455,6 +513,10 @@ def run_pipeline(
     base = os.path.splitext(output_video)[0].replace("_pathsense", "")
     events_json, timeline_png = f"{base}_events.json", f"{base}_timeline.png"
     ev_data = event_log.save(events_json, frame_idx - 1, rendered_video=output_video)
+    frames_json = f"{base}_frames.json"
+    with open(frames_json, "w") as f:
+        json.dump({"fps": fps, "frames": frames_log}, f, separators=(",", ":"))
+    summary["frames_json"] = frames_json
     draw_timeline(ev_data, timeline_png)
     summary["events_json"], summary["timeline_png"] = events_json, timeline_png
 
