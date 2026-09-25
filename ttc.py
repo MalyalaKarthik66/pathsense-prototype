@@ -28,10 +28,26 @@ class TTCComputer:
         ema_alpha_speed: float = 0.25,
         min_closing_speed_mps: float = 0.40,  # ~1.4 km/h minimum closing threshold
         critical_ttc_sec: float = 2.0,        # Critical hazard threshold (< 2.0s)
-        caution_ttc_sec: float = 4.0          # Caution hazard threshold (< 4.0s)
+        caution_ttc_sec: float = 4.0,         # Caution hazard threshold (< 4.0s)
+        lookback_sec: float = 0.20,           # Finite-difference window (time-based, so noise does not depend on FPS)
+        frame_width: Optional[int] = None,
+        frame_height: Optional[int] = None,
+        expansion_gate: bool = True,          # confirm depth-based TTC with bounding-box expansion (see update_track)
+        expansion_window_sec: float = 0.40,
+        gate_factor: float = 2.0
     ):
-        self.fps = fps
-        self.dt = 1.0 / fps
+        self.fps = fps if fps and np.isfinite(fps) and fps > 0 else 25.0
+        self.dt = 1.0 / self.fps
+        self.frame_w, self.frame_h = frame_width, frame_height
+        self.expansion_gate = expansion_gate
+        self.exp_frames = max(2, int(round(expansion_window_sec * self.fps)))
+        self.gate_factor = gate_factor
+        self.box_history: Dict[int, deque] = defaultdict(lambda: deque(maxlen=self.exp_frames + 1))
+        self.lookback_frames = max(2, int(round(lookback_sec * self.fps)))
+        history_len = max(history_len, self.lookback_frames + 1)
+        # A track unseen for longer than this is treated as new when it reappears (stale EMA would fake closing speed)
+        self.max_gap_frames = max(2, int(round(1.0 * self.fps)))
+        self.last_seen: Dict[int, int] = {}
         self.history_len = history_len
         self.alpha_d = ema_alpha_dist
         self.alpha_v = ema_alpha_speed
@@ -47,15 +63,60 @@ class TTCComputer:
         # smoothed_closing_speed: float (m/s)
         self.smoothed_closing_speed: Dict[int, float] = {}
 
-    def update_track(self, track_id: int, frame_idx: int, raw_depth: float) -> Tuple[float, float, Optional[float], str]:
+    def _image_ttc(self, track_id: int, frame_idx: int, bbox: Optional[List[float]]) -> Tuple[str, Optional[float]]:
+        """
+        Scale-expansion TTC from the bounding box: TTC_img = dt / (s_t / s_{t-k} - 1), independent of the depth map.
+        Returns (status, ttc_img); status is "ok" (ttc_img None when the box is not growing), "pending" (track too young),
+        or "unverifiable" (no box / box cut by the image border on both a side and the bottom: large, very close object).
+        """
+        if not self.expansion_gate or bbox is None or self.frame_w is None or self.frame_h is None:
+            return "unverifiable", None
+        x1, y1, x2, y2 = bbox
+        side_cut = x1 <= 2 or x2 >= self.frame_w - 2
+        bottom_cut = y2 >= self.frame_h - 2
+        if side_cut and bottom_cut:
+            self.box_history.pop(track_id, None)
+            return "unverifiable", None
+        scale = (x2 - x1) if bottom_cut else (y2 - y1)  # use the dimension that is not truncated
+        mode = "w" if bottom_cut else "h"
+        hist = self.box_history[track_id]
+        if hist and hist[-1][2] != mode:
+            hist.clear()  # measured dimension changed: restart
+        hist.append((frame_idx, max(1.0, scale), mode))
+        if len(hist) <= self.exp_frames:
+            return "pending", None
+        f0, s0, _ = hist[0]
+        dt = (frame_idx - f0) * self.dt
+        growth = hist[-1][1] / s0 - 1.0
+        if dt <= 0 or growth <= 0.01:
+            return "ok", None
+        return "ok", dt / growth
+
+    def update_track(self, track_id: int, frame_idx: int, raw_depth: float,
+                     bbox: Optional[List[float]] = None) -> Tuple[float, float, Optional[float], str]:
         """
         Updates distance history for a track and calculates:
+        If bbox is given (and the frame size is known), the depth-based TTC is cross-checked with the box-expansion TTC:
+        depth noise on small / distant boxes can fake large closing speeds, but cannot make the box grow. A depth TTC is
+        kept only if the box expansion agrees within gate_factor; otherwise the box-based TTC is used (None if the box
+        is not growing). Tracks without usable box history cannot be CRITICAL yet (capped at CAUTION).
         Returns:
             smoothed_d: filtered distance in meters
             closing_speed: filtered closing velocity in m/s (positive = approaching)
             ttc: time-to-collision in seconds (or None if N/A / receding)
             hazard_level: 'CRITICAL', 'CAUTION', or 'SAFE'
         """
+        # 0. Reset state for tracks that re-appear after a long gap, and drop invalid depth samples
+        last = self.last_seen.get(track_id)
+        if last is not None and frame_idx - last > self.max_gap_frames:
+            self._forget(track_id)
+        self.last_seen[track_id] = frame_idx
+
+        if raw_depth is None or not np.isfinite(raw_depth) or raw_depth <= 0.0:
+            if track_id not in self.smoothed_depth:
+                return 0.0, 0.0, None, "SAFE"
+            raw_depth = self.smoothed_depth[track_id]  # hold last estimate
+
         # 1. Update distance with EMA
         if track_id not in self.smoothed_depth:
             self.smoothed_depth[track_id] = raw_depth
@@ -66,8 +127,8 @@ class TTCComputer:
         history = self.depth_history[track_id]
         history.append((frame_idx, curr_smooth_d))
 
-        # 2. Finite difference over temporal window (use 5-frame lookback for stable differentiation)
-        lookback = min(5, len(history) - 1)
+        # 2. Finite difference over a fixed time window (lookback_sec) for stable differentiation at any FPS
+        lookback = min(self.lookback_frames, len(history) - 1)
         if lookback >= 2:
             prev_frame_idx, prev_smooth_d = history[-1 - lookback]
             delta_frames = frame_idx - prev_frame_idx
@@ -101,6 +162,16 @@ class TTCComputer:
         else:
             ttc = None  # Receding, stationary, or divergence
 
+        # 4b. Cross-check with bounding-box expansion (independent of the depth map)
+        status, ttc_img = self._image_ttc(track_id, frame_idx, bbox)
+        if ttc is not None and status == "ok":
+            if ttc_img is None:
+                ttc = None                                   # box not growing: depth "closing" is noise
+            elif ttc_img > self.gate_factor * ttc:
+                ttc = round(min(ttc_img, 25.0), 2)           # expansion says slower approach: trust it
+        elif ttc is not None and status == "pending" and ttc < self.critical_ttc:
+            ttc = self.critical_ttc                          # too young to confirm: at most CAUTION until confirmed
+
         # 5. Classify Hazard Level
         if ttc is not None and ttc < self.critical_ttc:
             hazard = "CRITICAL"
@@ -110,6 +181,19 @@ class TTCComputer:
             hazard = "SAFE"
 
         return round(curr_smooth_d, 2), round(curr_closing_v, 2), ttc, hazard
+
+    def _forget(self, track_id: int):
+        self.depth_history.pop(track_id, None)
+        self.smoothed_depth.pop(track_id, None)
+        self.smoothed_closing_speed.pop(track_id, None)
+        self.last_seen.pop(track_id, None)
+        self.box_history.pop(track_id, None)
+
+    def prune(self, frame_idx: int):
+        """Drops state of tracks not seen for more than max_gap_frames (bounded memory on long videos)."""
+        stale = [tid for tid, last in self.last_seen.items() if frame_idx - last > self.max_gap_frames]
+        for tid in stale:
+            self._forget(tid)
 
 
 def get_hazard_color(hazard: str) -> Tuple[int, int, int]:
@@ -379,10 +463,10 @@ def process_video_ttc(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PathSense Phase 4: Time-to-Collision (TTC)")
-    parser.add_argument("--input", type=str, default="data/samples/sample_closing.mp4", help="Path to input video")
-    parser.add_argument("--depth-json", type=str, default="sample_closing_depth.json", help="Path to Phase 3 depth JSON")
-    parser.add_argument("--output", type=str, default="ttc_preview_closing.mp4", help="Path to preview video")
-    parser.add_argument("--output-json", type=str, default="sample_closing_ttc.json", help="Path to output JSON")
+    parser.add_argument("--input", type=str, default="data/samples/sample_1.mp4", help="Path to input video")
+    parser.add_argument("--depth-json", type=str, default="depth_results.json", help="Path to Phase 3 depth JSON")
+    parser.add_argument("--output", type=str, default="ttc_preview.mp4", help="Path to preview video")
+    parser.add_argument("--output-json", type=str, default="ttc_results.json", help="Path to output JSON")
     parser.add_argument("--max-frames", type=int, default=None, help="Max frames to process (optional)")
     args = parser.parse_args()
 

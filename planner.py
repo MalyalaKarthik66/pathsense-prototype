@@ -10,7 +10,8 @@ Renders candidate arcs and the chosen optimal path onto the BEV costmap preview.
 VEHICLE MODEL & ASSUMPTIONS:
 - Kinematic Bicycle Model: tan(delta) = L * kappa  ==>  delta = arctan(L * kappa).
 - Wheelbase (L): 2.70 meters (standard passenger car / crossover).
-- Maximum Steering Angle (delta_max): +/- 30 degrees (curvature kappa_max ≈ 0.21 m^-1).
+- Maximum Steering Angle (delta_max): +/- 15 degrees (curvature kappa_max ≈ 0.099 m^-1). Wider fans let
+  sharp arcs turn 90 deg before reaching obstacles and score as free, so a blocked road never triggered BRAKE.
 - Lookahead Distance (s_max): 22.0 meters ahead.
 """
 
@@ -30,16 +31,20 @@ class DynamicArcPlanner:
     def __init__(
         self,
         wheelbase_m: float = 2.70,
-        max_steering_deg: float = 30.0,
+        max_steering_deg: float = 15.0,
         num_candidates: int = 17,
         lookahead_m: float = 22.0,
         step_m: float = 0.50,
         weight_obstacle: float = 1.0,
-        weight_center_bias: float = 12.0,
+        weight_center_bias: float = 60.0,  # 12 caused a constant 4-12 deg drift away from adjacent-lane cars
         weight_smoothness: float = 15.0,
-        steer_ema_alpha: float = 0.30
+        steer_ema_alpha: float = 0.30,
+        vehicle_half_width_m: float = 0.9,
+        lethal_cost: float = 240.0
     ):
         self.L = wheelbase_m
+        self.lethal_cost = lethal_cost
+        self.half_width = vehicle_half_width_m
         self.max_steer_deg = max_steering_deg
         self.max_steer_rad = np.radians(max_steering_deg)
         self.num_candidates = num_candidates
@@ -59,9 +64,13 @@ class DynamicArcPlanner:
         # Precompute candidate arc waypoints (X, Y) relative to ego (0, 0)
         self.candidate_paths = [self._generate_arc(k) for k in self.candidate_kappas]
 
+        # Reference point count (straight path) used to length-normalise obstacle cost across arcs
+        self.ref_points = len(self.candidate_paths[self.num_candidates // 2])
+
         # State
         self.prev_chosen_kappa = 0.0
         self.smoothed_steer_deg = 0.0
+        self.all_blocked = False  # True when every candidate collides with an obstacle footprint
 
     def _generate_arc(self, kappa: float) -> List[Tuple[float, float]]:
         """
@@ -76,7 +85,9 @@ class DynamicArcPlanner:
             for s in s_vals:
                 points.append((0.0, float(s)))
         else:
-            # Circular arc
+            # Circular arc, truncated at 90 deg heading change: beyond that the arc curls sideways/backwards,
+            # which is not a forward trajectory and would leave the grid (falsely scoring as free space)
+            s_vals = s_vals[np.abs(kappa) * s_vals <= np.pi / 2.0]
             for s in s_vals:
                 # Heading psi = kappa * s
                 # X(s) = (1 - cos(kappa * s)) / kappa
@@ -102,6 +113,12 @@ class DynamicArcPlanner:
             path_costs: list of total costs for all candidate arcs
         """
         path_costs = []
+        lethal_flags = []
+        occupancy = getattr(costmap_builder, "occupancy", None)
+        rows, cols = costmap_builder.grid_rows, costmap_builder.grid_cols
+
+        def in_grid(c: int, r: int) -> bool:
+            return 0 <= r < rows and 0 <= c < cols
 
         for idx, (kappa, path) in enumerate(zip(self.candidate_kappas, self.candidate_paths)):
             obs_cost = 0.0
@@ -112,28 +129,24 @@ class DynamicArcPlanner:
                         costmap_builder.min_y <= ym <= costmap_builder.max_y):
                     continue
 
-                col, row = costmap_builder.coord_to_grid(xm, ym)
-                if 0 <= row < costmap_builder.grid_rows and 0 <= col < costmap_builder.grid_cols:
-                    center_cost = float(costmap[row, col])
+                # Sample vehicle body centre and sides (+/- half width)
+                samples = [costmap_builder.coord_to_grid(xm + dx, ym) for dx in (0.0, -self.half_width, self.half_width)]
+                pt_cost = max((float(costmap[r, c]) for c, r in samples if in_grid(c, r)), default=0.0)
 
-                    # Sample vehicle body sides (+/- 0.8m width)
-                    col_l, row_l = costmap_builder.coord_to_grid(xm - 0.8, ym)
-                    col_r, row_r = costmap_builder.coord_to_grid(xm + 0.8, ym)
+                # Collision = body overlaps any obstacle footprint (any class), or near-lethal cost
+                if pt_cost >= self.lethal_cost or (occupancy is not None and any(occupancy[r, c] for c, r in samples if in_grid(c, r))):
+                    lethal_collision = True
 
-                    cost_l = float(costmap[row_l, col_l]) if 0 <= row_l < costmap_builder.grid_rows and 0 <= col_l < costmap_builder.grid_cols else 0.0
-                    cost_r = float(costmap[row_r, col_r]) if 0 <= row_r < costmap_builder.grid_rows and 0 <= col_r < costmap_builder.grid_cols else 0.0
+                # Weight closer obstacles heavier (1 / sqrt(y))
+                dist_weight = 1.0 / np.sqrt(max(1.0, ym))
+                obs_cost += pt_cost * dist_weight
 
-                    pt_cost = max(center_cost, cost_l, cost_r)
-
-                    if pt_cost >= 240:
-                        lethal_collision = True
-
-                    # Weight closer obstacles heavier (1 / sqrt(y))
-                    dist_weight = 1.0 / np.sqrt(max(1.0, ym))
-                    obs_cost += pt_cost * dist_weight
+            # Length-normalise so short (sharply curved) arcs are not favoured just for sampling fewer points
+            obs_cost *= self.ref_points / max(1, len(path))
 
             if lethal_collision:
                 obs_cost += 50000.0  # Heavy collision penalty
+            lethal_flags.append(lethal_collision)
 
             # Center bias penalty: encourages staying centered unless evading
             center_penalty = self.w_center * (abs(kappa) / self.max_kappa) ** 2 * 100.0
@@ -144,7 +157,9 @@ class DynamicArcPlanner:
             total_cost = self.w_obs * obs_cost + center_penalty + smooth_penalty
             path_costs.append(total_cost)
 
-        # Select candidate with minimum cost
+        # Select candidate with minimum cost. If every candidate collides we still return the least-bad arc,
+        # but flag it so the HUD can command braking instead of presenting it as a safe path.
+        self.all_blocked = all(lethal_flags)
         best_idx = int(np.argmin(path_costs))
         best_kappa = self.candidate_kappas[best_idx]
         self.prev_chosen_kappa = best_kappa
@@ -190,7 +205,7 @@ class DynamicArcPlanner:
 
         # 2. Draw chosen path in bold neon green (or yellow if evading)
         poly_best = [to_pixel(x, y) for x, y in best_path]
-        path_color = (0, 255, 0) if abs(steering_deg) < 8.0 else (0, 215, 255)
+        path_color = (0, 255, 0) if abs(steering_deg) < 4.0 else (0, 215, 255)
         cv2.polylines(bev_canvas, [np.array(poly_best, dtype=np.int32)], isClosed=False, color=path_color, thickness=3, lineType=cv2.LINE_AA)
 
         # 3. Steering Angle Gauge at top of BEV panel
@@ -267,7 +282,7 @@ def process_video_planner(
     print(f"  Resolution: {width}x{height} | Native FPS: {fps:.2f} | Frames to process: {frames_to_process}")
 
     costmap_builder = BEVCostmap(img_width=width, img_height=height)
-    planner = DynamicArcPlanner(wheelbase_m=2.70, max_steering_deg=30.0, num_candidates=17)
+    planner = DynamicArcPlanner(wheelbase_m=2.70, max_steering_deg=15.0, num_candidates=17)
 
     writer = None
     if output_video_path:

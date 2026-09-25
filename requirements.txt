@@ -1,13 +1,21 @@
 # PathSense: Adaptive Path Planning and Collision Avoidance for Autonomous Vehicles
-# Core dependencies for CPU-friendly offline processing
+#
+# Install PyTorch FIRST, matched to your hardware (pip's default Windows wheel is CPU-only):
+#   NVIDIA GPU (driver supporting CUDA >= 12.6):
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+#   CPU only:
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# Then: pip install -r requirements.txt
 
 torch>=2.0.0
 torchvision>=0.15.0
 ultralytics>=8.0.0
+lap>=0.5.12                 # ByteTrack linear assignment (otherwise ultralytics tries to auto-install at runtime)
+transformers>=4.45.0        # Depth Anything V2 pipeline (depth.py)
+pillow>=9.0.0
 opencv-python>=4.8.0
 numpy>=1.24.0,<2.0.0
 matplotlib>=3.7.0
 scipy>=1.10.0
-timm>=0.9.0
 requests>=2.31.0
 tqdm>=4.66.0

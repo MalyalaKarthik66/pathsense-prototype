@@ -44,14 +44,22 @@ class EgoMotionEstimator:
     ):
         self.w = width
         self.h = height
-        self.fps = fps
-        self.dt = 1.0 / fps
+        self.fps = fps if fps and np.isfinite(fps) and fps > 0 else 25.0
+        self.dt = 1.0 / self.fps
         self.camera_h = camera_height_m
+
+        # Per-frame physical sanity limits, derived from speeds so they hold at any FPS
+        # (forward 0.5-40 m/s ~ 1.8-144 km/h, lateral < 15 m/s)
+        self.min_disp_y = 0.5 * self.dt
+        self.max_disp_y = 40.0 * self.dt
+        self.max_disp_x = 15.0 * self.dt
         self.ema_alpha = ema_alpha
         self.max_points = max_points
         self.min_points = min_points
 
         # Pinhole Camera Intrinsics
+        self.fov_deg = fov_deg
+        self.horizon_ratio = horizon_ratio
         fov_rad = np.radians(fov_deg)
         self.fx = (self.w / 2.0) / np.tan(fov_rad / 2.0)
         self.fy = self.fx
@@ -120,6 +128,12 @@ class EgoMotionEstimator:
             flow_tracks: list of ((u0, v0), (u1, v1)) optical flow vectors
         """
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        if gray.shape != (self.h, self.w):
+            # Container-reported size was wrong or resolution changed mid-stream: re-derive geometry, restart flow
+            speed, lat, px, py = self.smoothed_speed_mps, self.smoothed_lateral_mps, self.pos_x, self.pos_y
+            self.__init__(width=gray.shape[1], height=gray.shape[0], fps=self.fps, camera_height_m=self.camera_h,
+                          fov_deg=self.fov_deg, horizon_ratio=self.horizon_ratio, ema_alpha=self.ema_alpha, max_points=self.max_points, min_points=self.min_points)
+            self.smoothed_speed_mps, self.smoothed_lateral_mps, self.pos_x, self.pos_y = speed, lat, px, py
         obstacle_boxes = obstacle_boxes or []
         road_mask = self._create_road_mask(obstacle_boxes)
 
@@ -151,8 +165,8 @@ class EgoMotionEstimator:
                         disp_y = y0 - y1
                         disp_x = x0 - x1
 
-                        # Physical sanity check: forward speed between 1 km/h and 140 km/h (0.01m to 1.6m per frame)
-                        if 0.02 < disp_y < 1.60 and abs(disp_x) < 0.60:
+                        # Physical sanity check (FPS-independent speed limits, see __init__)
+                        if self.min_disp_y < disp_y < self.max_disp_y and abs(disp_x) < self.max_disp_x:
                             raw_dy_list.append(disp_y)
                             raw_dx_list.append(disp_x)
                             flow_tracks.append(((int(u0), int(v0)), (int(u1), int(v1))))

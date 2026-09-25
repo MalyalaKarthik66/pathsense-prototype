@@ -48,6 +48,36 @@ COLOR_PALETTE = [
 ]
 
 
+def suppress_riders(objects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Removes 'person' detections that are riders of a detected motorcycle/bicycle (very common in Indian traffic:
+    YOLO reports both the two-wheeler and its rider). Keeping them would double-count the obstacle and give a
+    moving two-wheeler the pedestrian's maximum-vulnerability cost halo. The two-wheeler box remains the obstacle.
+    """
+    twos = [o["bbox"] for o in objects if o["class_name"] in ("motorcycle", "bicycle")]
+    if not twos:
+        return objects
+    kept = []
+    for o in objects:
+        if o["class_name"] == "person":
+            px1, py1, px2, py2 = o["bbox"]
+            p_area = max(1.0, (px2 - px1) * (py2 - py1))
+            pcx = (px1 + px2) / 2.0
+            rider = False
+            for mx1, my1, mx2, my2 in twos:
+                mw, mh = mx2 - mx1, my2 - my1
+                # rider region: the two-wheeler box widened by 20% and extended upwards by one box height
+                ix = max(0.0, min(px2, mx2 + 0.2 * mw) - max(px1, mx1 - 0.2 * mw))
+                iy = max(0.0, min(py2, my2) - max(py1, my1 - mh))
+                if ix * iy > 0.5 * p_area and mx1 - 0.1 * mw < pcx < mx2 + 0.1 * mw:
+                    rider = True
+                    break
+            if rider:
+                continue
+        kept.append(o)
+    return kept
+
+
 def get_color_for_id(track_id: int) -> tuple:
     return COLOR_PALETTE[track_id % len(COLOR_PALETTE)]
 
@@ -58,15 +88,25 @@ class DetectorTracker:
         model_name: str = "yolov8n.pt",
         conf_thresh: float = 0.30,
         iou_thresh: float = 0.50,
-        target_classes: Optional[Dict[int, str]] = None
+        target_classes: Optional[Dict[int, str]] = None,
+        device: Optional[str] = None,
+        imgsz: int = 640,
+        merge_riders: bool = True
     ):
+        self.merge_riders = merge_riders
         self.model_name = model_name
         self.conf_thresh = conf_thresh
         self.iou_thresh = iou_thresh
         self.target_classes = target_classes or TARGET_CLASSES
         self.target_class_ids = list(self.target_classes.keys())
+        self.imgsz = imgsz
 
-        print(f"[DetectorTracker] Initializing YOLOv8 model: {model_name}...")
+        if device is None:
+            import torch
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.device = device
+
+        print(f"[DetectorTracker] Initializing YOLOv8 model: {model_name} on {self.device}...")
         self.model = YOLO(model_name)
         print("[DetectorTracker] Model initialized successfully.")
 
@@ -83,6 +123,8 @@ class DetectorTracker:
             classes=self.target_class_ids,
             conf=self.conf_thresh,
             iou=self.iou_thresh,
+            imgsz=self.imgsz,
+            device=self.device,
             verbose=False
         )
 
@@ -108,6 +150,10 @@ class DetectorTracker:
             bbox = [float(round(coord, 1)) for coord in xyxy[i]]
             conf = float(round(confs[i], 3))
 
+            # Skip degenerate / non-finite boxes so downstream depth, TTC and BEV never see them
+            if not np.all(np.isfinite(bbox)) or bbox[2] - bbox[0] < 1.0 or bbox[3] - bbox[1] < 1.0:
+                continue
+
             tracked_objects.append({
                 "track_id": tid,
                 "class_id": cid,
@@ -116,7 +162,7 @@ class DetectorTracker:
                 "confidence": conf
             })
 
-        return tracked_objects
+        return suppress_riders(tracked_objects) if self.merge_riders else tracked_objects
 
 
 def draw_tracking_overlay(frame: np.ndarray, tracked_objects: List[Dict[str, Any]], fps: float, frame_idx: int) -> np.ndarray:

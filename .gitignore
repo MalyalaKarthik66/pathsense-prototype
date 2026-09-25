@@ -1,10 +1,49 @@
-# Media and visual outputs
-*.mp4
-*.jpg
-*.png
+# ---- Python environments & caches
+.venv/
+venv/
+env/
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
 
-# Data outputs (if you don't need to track raw results)
-*.json
+# ---- IDE / OS junk
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# Model weights
+# ---- Model weights & framework caches (downloaded automatically at runtime)
 *.pt
+*.pth
+*.onnx
+*.engine
+runs/
+.cache/
+
+# ---- Videos (test footage is downloaded by download_samples.py / documented in README; never commit media)
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+
+# ---- Pipeline outputs (rendered HUD videos, stats/event JSON, frame grabs)
+outputs/
+data/samples/raw/
+
+# ---- Artifacts written to the repo root by the per-phase module CLIs
+/*_results.json
+/*_preview*.json
+/*.png
+/*.jpg
+
+# ---- Logs & temp
+*.log
+*.tmp
+tmp/
