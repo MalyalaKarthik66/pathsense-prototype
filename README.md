@@ -396,14 +396,13 @@ Across the six Indian validation drives the detector produced no false accident 
 
 ## 17. SIH presentation
 
-`PathSense_SIH_Presentation.pptx` (+ `.pdf` for the portal) is the **idea deck**: 8 slides following the SIH 2026
-idea-presentation format as laid out in the team's reference deck (Title page · Proposed solution · Technical approach ·
-Prototype · Feasibility and viability · Proof of concept, impact & benefits · Business model canvas · Research and
-references). It is built **on the reference deck's design** (header, footer, logo placement, notebook cards, colour
-boxes, typography) with all content replaced by PathSense content. It contains **no prototype measurements and no
-application screenshots**; every picture is an original 3D concept render, an editable diagram, an icon or a
-technology logo. Build: `python presentation/build_presentation.py <path to finalforsih.pptx>` (default: `~/Downloads`).
-Concept renders: `node presentation/hero/render_hero.mjs` renders `presentation/hero/scene.html` (three.js from
-jsDelivr, headless Edge/Chrome) to `presentation/assets/scenes/`. Technology logos: `presentation/make_logos.js`
-(Simple Icons via react-icons). Icons: `presentation/make_icons.js` (react-icons, MIT).
+`PathSense_SIH_Final_Presentation.pptx` (+ `.pdf`) is the SIH idea deck, built on the **official SIH FINAL FORMAT
+template** (10 slides: title page, idea/proposed solution, technical approach, prototype, proof of concept, feasibility and
+viability, impact and benefits, business model canvas, national scheme alignments, research and references). The SIH
+branding, headers, footer, logo and title-page structure are kept; the official pointer texts appear as section
+sub-labels. Topic organisation follows the team's reference deck; the visual treatment is PathSense's own. The
+Prototype slide uses real frames from the processed demo videos (`presentation/extract_frames.py`, CC0 footage by
+L. Shyamal); no dashboard/website screenshots and no benchmark numbers appear anywhere.
+Build: `python presentation/build_presentation.py "<path to SIH FINAL FORMAT.pptx>"`. Concept renders:
+`node presentation/hero/render_hero.mjs`; logos: `presentation/make_logos.js`. Icons: `presentation/make_icons.js` (react-icons, MIT).
 
