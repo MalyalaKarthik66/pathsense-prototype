@@ -396,13 +396,14 @@ Across the six Indian validation drives the detector produced no false accident 
 
 ## 17. SIH presentation
 
-`PathSense_SIH_Presentation.pptx` (+ `.pdf` for the portal) is the **idea deck** and follows the **official SIH 2026
-idea-presentation template**: six slides (Title page · Idea / Proposed solution · Technical approach · Feasibility and
-viability · Impact and benefits · Research and references), with the template's pointers kept verbatim. It presents the
-proposed solution, a conceptual Prototype → Pilot → Production roadmap and expected impact. It deliberately contains
-**no prototype measurements and no prototype screenshots**, because those belong to the live demo.
-Build: `python presentation/build_presentation.py <path to SIH2026-IDEA-Presentation-Format.pptx>` (default: `~/Downloads`).
-The title and idea visuals are original 3D concept renders: `node presentation/hero/render_hero.mjs` renders
-`presentation/hero/scene.html` (three.js from jsDelivr, headless Edge/Chrome) to `presentation/assets/hero_*.png` plus
-anchor files used to place the slide callouts. The Team ID is left blank for the portal value. Icons: `presentation/make_icons.js` (react-icons, MIT).
+`PathSense_SIH_Presentation.pptx` (+ `.pdf` for the portal) is the **idea deck**: 8 slides following the SIH 2026
+idea-presentation format as laid out in the team's reference deck (Title page · Proposed solution · Technical approach ·
+Prototype · Feasibility and viability · Proof of concept, impact & benefits · Business model canvas · Research and
+references). It is built **on the reference deck's design** (header, footer, logo placement, notebook cards, colour
+boxes, typography) with all content replaced by PathSense content. It contains **no prototype measurements and no
+application screenshots**; every picture is an original 3D concept render, an editable diagram, an icon or a
+technology logo. Build: `python presentation/build_presentation.py <path to finalforsih.pptx>` (default: `~/Downloads`).
+Concept renders: `node presentation/hero/render_hero.mjs` renders `presentation/hero/scene.html` (three.js from
+jsDelivr, headless Edge/Chrome) to `presentation/assets/scenes/`. Technology logos: `presentation/make_logos.js`
+(Simple Icons via react-icons). Icons: `presentation/make_icons.js` (react-icons, MIT).
 
