@@ -51,6 +51,7 @@ GO, SLOW, BRAKE = "16A34A", "D97706", "DC2626"
 GO_T, SLOW_T, BRAKE_T = "E8F6EC", "FDF1E1", "FDECEC"
 CARD = "FFFFFF"
 FONT = "Arial"
+FONT_SCALE = 1.18         # the template is 20" wide: scale all added text up for readability
 
 prs = Presentation(TEMPLATE)
 SL = list(prs.slides)
@@ -142,7 +143,7 @@ def text(s, x, y, w, h, paras, size=11.5, color=INK, bold=False, align=PP_ALIGN.
             r.text = t
             f = r.font
             f.name = FONT
-            f.size = Pt(o.get("size", size))
+            f.size = Pt(round(o.get("size", size) * FONT_SCALE * 2) / 2)
             f.bold = o.get("bold", bold)
             f.italic = o.get("italic", italic)
             f.underline = o.get("underline", False)
