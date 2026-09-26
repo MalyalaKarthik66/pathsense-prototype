@@ -1,0 +1,146 @@
+{
+  "input_video": "data/samples/india_bangalore.webm",
+  "output_video": "outputs/india_bangalore_pathsense.mp4",
+  "input_resolution": [
+    1280,
+    720
+  ],
+  "input_fps": 30.0,
+  "input_reported_frames": 3803,
+  "frames_processed": 3803,
+  "processing_seconds": 443.51,
+  "processing_fps": 8.57,
+  "realtime_factor": 0.286,
+  "device": "cuda:0",
+  "gpu_name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "peak_torch_gpu_mem_mb": 438.3,
+  "stage_ms_per_frame": {
+    "detect_track": 14.5,
+    "auto_classifier": 1.0,
+    "depth": 64.8,
+    "ttc": 0.1,
+    "ego_motion": 15.6,
+    "costmap": 0.5,
+    "planner": 2.6,
+    "decision": 0.4,
+    "accident": 0.8,
+    "render_write": 14.5
+  },
+  "detections_total": 18564,
+  "frames_with_detections": 3803,
+  "unique_track_ids": 613,
+  "depth_inference_frames": 3803,
+  "ttc_estimates": 8578,
+  "hazard_counts": {
+    "SAFE": 12874,
+    "CAUTION": 2008,
+    "CRITICAL": 3682
+  },
+  "ego_frames_with_flow": 3621,
+  "final_speed_kmh": 29.8,
+  "final_travel_m": 946.15,
+  "bev_frames_with_obstacles": 3802,
+  "planner_distinct_candidates": 8,
+  "planner_blocked_frames": 7,
+  "max_abs_steer_deg": 8.9,
+  "mean_abs_steer_deg": 1.24,
+  "frames_with_critical_pct": 66.0,
+  "planner_blocked_pct": 0.2,
+  "decision_label_pct": {
+    "SLOW DOWN": 87.1,
+    "GO STRAIGHT": 6.5,
+    "BRAKE": 6.4
+  },
+  "decision_state_pct": {
+    "CAUTION": 87.1,
+    "GO": 6.5,
+    "BRAKE": 6.4
+  },
+  "decision_transitions": 21,
+  "decision_transitions_per_min": 9.9,
+  "brake_episodes": 7,
+  "brake_episode_median_s": 1.0,
+  "brake_episode_list": [
+    {
+      "start_frame": 37,
+      "end_frame": 66,
+      "seconds": 1.0,
+      "reason": "person #6 in path, closing (TTC 1.6s, 9 m)"
+    },
+    {
+      "start_frame": 927,
+      "end_frame": 956,
+      "seconds": 1.0,
+      "reason": "car #429 in path, closing fast (TTC 0.4s)"
+    },
+    {
+      "start_frame": 961,
+      "end_frame": 991,
+      "seconds": 1.03,
+      "reason": "car #440 in path, closing fast (TTC 0.4s)"
+    },
+    {
+      "start_frame": 2372,
+      "end_frame": 2401,
+      "seconds": 1.0,
+      "reason": "car #1063 in path, closing (TTC 1.3s, 13 m)"
+    },
+    {
+      "start_frame": 2515,
+      "end_frame": 2560,
+      "seconds": 1.53,
+      "reason": "car #1076 in path, closing (TTC 1.5s, 4 m)"
+    },
+    {
+      "start_frame": 2693,
+      "end_frame": 2737,
+      "seconds": 1.5,
+      "reason": "car #1225 in path, closing (TTC 1.2s, 6 m)"
+    },
+    {
+      "start_frame": 2968,
+      "end_frame": 2997,
+      "seconds": 1.0,
+      "reason": "car #1348 moving into path at 9.7 m, TTC 1.4s"
+    }
+  ],
+  "depth_geometry": {
+    "mode": "ground",
+    "horizon_px": 433.1,
+    "camera_height_m": 1.18,
+    "source": "self-calibrated",
+    "calibrated": true,
+    "last_fit_r2": 1.0
+  },
+  "depth_heuristic_fallback_frames": 0,
+  "behavior_counts": {
+    "SIDE PASS": 53,
+    "CUT-IN": 2,
+    "ONCOMING": 4,
+    "CROSSING": 1,
+    "SLOW LEAD": 1
+  },
+  "video_codec": "avc1",
+  "accident": {
+    "enabled": true,
+    "possible_events": 9,
+    "unconfirmed_events": 9,
+    "confirmed": []
+  },
+  "auto_rickshaw": {
+    "enabled": true,
+    "confirmed_tracks": 12,
+    "crops_classified": 420
+  },
+  "decision_events": 22,
+  "output_check": {
+    "opened": true,
+    "frames": 3803,
+    "width": 1280,
+    "height": 720,
+    "fps": 30.0
+  },
+  "frames_json": "outputs/india_bangalore_frames.json",
+  "events_json": "outputs/india_bangalore_events.json",
+  "timeline_png": "outputs/india_bangalore_timeline.png"
+}

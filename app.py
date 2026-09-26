@@ -30,12 +30,19 @@ from werkzeug.utils import secure_filename
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUTPUTS = os.path.join(ROOT, "outputs")
 WEB_OUT = os.path.join(OUTPUTS, "web")
+DEMOS = os.path.join(ROOT, "demos")      # built-in demos, committed to Git (build_demos.py) - present on every deploy
 UPLOADS = os.path.join(ROOT, "uploads")
 CERTS = os.path.join(ROOT, "certs")
 ALLOWED_EXT = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
+MAX_UPLOAD_MB = 1024
+# The pipeline loads YOLOv8, Depth-Anything-V2 and CLIP: measured peak RSS 1.58 GB on CPU (60-frame run, Windows).
+# With less RAM than this the process is killed mid-job (e.g. the 512 MB Render Free instance), so uploads are refused
+# up front with the reason instead. Override with PATHSENSE_INFERENCE=on|off.
+PIPELINE_PEAK_RAM_GB = 1.6
+MIN_INFERENCE_RAM_GB = 2.0
 
 app = Flask(__name__, static_folder=os.path.join(ROOT, "web", "static"), static_url_path="/static")
-app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024  # 1 GB uploads
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
 JOBS: Dict[str, Dict[str, Any]] = {}
 JOB_LOCK = threading.Lock()
@@ -54,21 +61,27 @@ def _json(path: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _demo_entry(video_path: str) -> Optional[Dict[str, Any]]:
-    """A demo = a rendered <name>_pathsense.mp4 that currently exists (the user's curated outputs)."""
+def _demo_entry(video_path: str, root: str = OUTPUTS, url_prefix: str = "/media/", name_prefix: str = "",
+                meta: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """A demo = a rendered <name>_pathsense.mp4 that exists, either built in (demos/) or a local output (outputs/)."""
     base = video_path[: -len("_pathsense.mp4")]
-    name = os.path.relpath(base, OUTPUTS).replace("\\", "/")
+    rel = lambda p: os.path.relpath(p, root).replace("\\", "/")
+    meta = meta or {}
+    name = name_prefix + (meta.get("clip") or rel(base))
     stats = _json(base + "_stats.json") or {}
     lab = stats.get("decision_label_pct", {})
+    poster = os.path.join(os.path.dirname(base), "poster.jpg")
     return {
         "name": name,
-        "title": os.path.basename(base).replace("_", " "),
-        "video_url": "/media/" + os.path.relpath(video_path, OUTPUTS).replace("\\", "/"),
-        "timeline_url": "/media/" + os.path.relpath(base + "_timeline.png", OUTPUTS).replace("\\", "/")
-        if os.path.exists(base + "_timeline.png") else None,
+        "title": meta.get("title") or os.path.basename(base).replace("_", " "),
+        "place": meta.get("place"), "desc": meta.get("desc"),
+        "builtin": bool(meta),
+        "video_url": url_prefix + rel(video_path),
+        "poster_url": url_prefix + rel(poster) if meta and os.path.exists(poster) else None,
+        "timeline_url": url_prefix + rel(base + "_timeline.png") if os.path.exists(base + "_timeline.png") else None,
         "has_events": os.path.exists(base + "_events.json"),
         "has_frames": os.path.exists(base + "_frames.json"),
-        "browser_playable": stats.get("video_codec") == "avc1",
+        "browser_playable": bool(meta) or stats.get("video_codec") == "avc1",
         "frames": stats.get("frames_processed"), "fps": stats.get("input_fps"),
         "duration_s": round(stats["frames_processed"] / stats["input_fps"], 1) if stats.get("input_fps") else None,
         "processing_fps": stats.get("processing_fps"),
@@ -76,6 +89,70 @@ def _demo_entry(video_path: str) -> Optional[Dict[str, Any]]:
         "decision_pct": lab, "uploaded": name.startswith("web/"),
         "accidents": len((stats.get("accident") or {}).get("confirmed", [])),
     }
+
+
+def _builtin_demos():
+    cat = _json(os.path.join(DEMOS, "catalog.json")) or {}
+    out = []
+    for m in cat.get("demos", []):
+        v = os.path.join(DEMOS, m["clip"], f"{m['clip']}_pathsense.mp4")
+        if os.path.isfile(v):
+            out.append(_demo_entry(v, DEMOS, "/demos/", "demo/", m))
+    return out
+
+
+def _mem_limit_gb() -> Optional[float]:
+    """RAM available to this process: the container (cgroup) limit if there is one, else physical memory."""
+    for p in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            with open(p) as f:
+                v = f.read().strip()
+            if v.isdigit() and int(v) < 1 << 50:
+                return int(v) / 2**30
+        except OSError:
+            pass
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
+    except (AttributeError, ValueError, OSError):
+        pass
+    if sys.platform == "win32":
+        import ctypes
+
+        class MS(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong)] + \
+                       [(n, ctypes.c_ulonglong) for n in ("total", "avail", "tpf", "apf", "tv", "av", "aev")]
+        m = MS(); m.dwLength = ctypes.sizeof(MS)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+            return m.total / 2**30
+    return None
+
+
+_caps: Dict[str, Any] = {}
+
+
+def capabilities() -> Dict[str, Any]:
+    """Can this server run the PathSense pipeline? Cheap (no torch import) so the page can ask on load."""
+    if _caps:
+        return _caps
+    import importlib.util
+    mem = _mem_limit_gb()
+    missing = [m for m in ("torch", "ultralytics", "transformers", "cv2") if importlib.util.find_spec(m) is None]
+    force = os.environ.get("PATHSENSE_INFERENCE", "").lower()
+    if force in ("0", "off", "false"):
+        ok, reason = False, "Video processing is switched off on this server (PATHSENSE_INFERENCE=off)."
+    elif missing:
+        ok, reason = False, f"Video processing is unavailable on this server: missing Python packages {', '.join(missing)}."
+    elif force not in ("1", "on", "true") and mem is not None and mem < MIN_INFERENCE_RAM_GB:
+        ok, reason = False, (f"Video processing is unavailable on this server: it has {mem:.1f} GB RAM, and the "
+                             f"PathSense pipeline (YOLOv8 + Depth-Anything-V2 + CLIP) peaks at about "
+                             f"{PIPELINE_PEAK_RAM_GB} GB. The built-in demos on this page were processed by "
+                             f"the same pipeline; to process your own video, run PathSense locally (python app.py).")
+    else:
+        ok, reason = True, None
+    _caps.update(inference=ok, reason=reason, memory_gb=round(mem, 1) if mem else None,
+                 host="render" if os.environ.get("RENDER") else "local", max_upload_mb=MAX_UPLOAD_MB,
+                 allowed_ext=sorted(ALLOWED_EXT))
+    return _caps
 
 
 def _lan_ips():
@@ -111,17 +188,34 @@ def media(subpath):
     return send_from_directory(OUTPUTS, subpath, conditional=True)  # HTTP range requests for video seeking
 
 
+@app.route("/demos/<path:subpath>")
+def demo_media(subpath):
+    """Built-in demo assets (repository files, so they exist on every deployment). Range requests -> seeking works."""
+    full = os.path.normpath(os.path.join(DEMOS, subpath))
+    if not full.startswith(DEMOS + os.sep) or not os.path.isfile(full):
+        abort(404)
+    return send_from_directory(DEMOS, subpath, conditional=True, max_age=86400)
+
+
 # ------------------------------------------------------------------------------------------------ demos / events
 @app.route("/api/demos")
 def api_demos():
+    """Built-in SIH demos first (always available), then any local pipeline outputs and uploads on this machine."""
+    builtin = _builtin_demos()
+    clips = {d["name"].split("/", 1)[1] for d in builtin}
     vids = sorted(glob.glob(os.path.join(OUTPUTS, "*_pathsense.mp4")) + glob.glob(os.path.join(WEB_OUT, "*_pathsense.mp4")),
                   key=os.path.getmtime, reverse=True)
-    return jsonify([e for e in (_demo_entry(v) for v in vids) if e])
+    local = [e for e in (_demo_entry(v) for v in vids) if e and e["name"] not in clips]  # built-in copy wins
+    return jsonify(builtin + local)
 
 
 def _base_for(name: str) -> str:
-    base = os.path.normpath(os.path.join(OUTPUTS, name))
-    if not base.startswith(OUTPUTS):
+    root = OUTPUTS
+    if name.startswith("demo/"):
+        clip = name[len("demo/"):]
+        root, name = DEMOS, f"{clip}/{clip}"
+    base = os.path.normpath(os.path.join(root, name))
+    if not base.startswith(root + os.sep):
         abort(400)
     return base
 
@@ -178,19 +272,30 @@ def _run_job(job_id: str, in_path: str, out_video: str, stats_json: str):
         traceback.print_exc()
 
 
+@app.route("/api/capabilities")
+def api_capabilities():
+    return jsonify({**capabilities(), "lan_ips": _lan_ips()})
+
+
 @app.route("/api/upload", methods=["POST"])
 def api_upload():
+    caps = capabilities()
+    if not caps["inference"]:  # checked before the body is parsed: nothing is stored
+        return jsonify({"error": caps["reason"], "code": "inference_unavailable"}), 503
     f = request.files.get("video")
     if f is None or not f.filename:
-        return jsonify({"error": "no file field 'video'"}), 400
+        return jsonify({"error": "no file in form field 'video'"}), 400
     name = secure_filename(f.filename) or "upload.mp4"
     stem, ext = os.path.splitext(name)
     if ext.lower() not in ALLOWED_EXT:
-        return jsonify({"error": f"unsupported file type {ext}; use {sorted(ALLOWED_EXT)}"}), 400
+        return jsonify({"error": f"unsupported file type '{ext or '(none)'}'; use {', '.join(sorted(ALLOWED_EXT))}"}), 415
     job_id = uuid.uuid4().hex[:10]
     os.makedirs(UPLOADS, exist_ok=True); os.makedirs(WEB_OUT, exist_ok=True)
     in_path = os.path.join(UPLOADS, f"{job_id}_{name}")
-    f.save(in_path)
+    try:
+        f.save(in_path)
+    except OSError as e:
+        return jsonify({"error": f"could not store the upload on the server: {e}"}), 507
     base = os.path.join(WEB_OUT, f"{stem}_{job_id}")
     JOBS[job_id] = {"id": job_id, "status": "running", "stage": "queued", "progress": 0.0, "file": name,
                     "created": time.time(), "cancel": threading.Event()}
@@ -219,6 +324,9 @@ def api_job_cancel(job_id):
 # ------------------------------------------------------------------------------------------------ live camera
 @app.route("/api/live/start", methods=["POST"])
 def api_live_start():
+    caps = capabilities()
+    if not caps["inference"]:
+        return jsonify({"error": caps["reason"], "code": "inference_unavailable"}), 503
     with _live_lock:
         if _live["pipeline"] is None:
             try:
@@ -341,6 +449,23 @@ def api_run_tests():
     with open(os.path.join(OUTPUTS, "scenario_tests_last.json"), "w") as f:
         json.dump(res, f, indent=1)
     return jsonify(res)
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    return jsonify({"error": f"file is larger than the {MAX_UPLOAD_MB} MB upload limit"}), 413
+
+
+@app.errorhandler(Exception)
+def api_error(e):
+    """JSON errors for /api/* so the page can show the real status and message instead of an HTML error page."""
+    from werkzeug.exceptions import HTTPException
+    if not request.path.startswith("/api/"):
+        return e if isinstance(e, HTTPException) else ("Internal Server Error", 500)
+    if isinstance(e, HTTPException):
+        return jsonify({"error": f"{e.name}: {e.description}"}), e.code
+    traceback.print_exc()
+    return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
 
 
 # ------------------------------------------------------------------------------------------------ HTTPS (phone camera)

@@ -1,0 +1,369 @@
+{
+ "video": "data/samples/india_cvraman.webm",
+ "fps": 30.03003003003003,
+ "frames": 1451,
+ "events": [
+  {
+   "id": 0,
+   "type": "decision",
+   "frame": 0,
+   "time_s": 0.0,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": 0.0,
+   "ego_speed_kmh": 0.0,
+   "object": null,
+   "duration_s": 3.06
+  },
+  {
+   "id": 1,
+   "type": "decision",
+   "frame": 92,
+   "time_s": 3.06,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Car entering path",
+   "reason": "car #2 moving into path at 12.8 m",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -0.7,
+   "ego_speed_kmh": 20.7,
+   "object": {
+    "track_id": 2,
+    "class_name": "car",
+    "distance_m": 12.84,
+    "lateral_m": 3.93,
+    "ttc_s": null,
+    "behavior": null
+   },
+   "duration_s": 2.26
+  },
+  {
+   "id": 2,
+   "type": "behavior",
+   "frame": 130,
+   "time_s": 4.33,
+   "behavior": "SLOW LEAD",
+   "ego_speed_kmh": 16.1,
+   "object": {
+    "track_id": 13,
+    "class_name": "car",
+    "distance_m": 11.56,
+    "lateral_m": -2.27,
+    "ttc_s": 2.15,
+    "closing_speed_mps": 5.39
+   }
+  },
+  {
+   "id": 3,
+   "type": "decision",
+   "frame": 160,
+   "time_s": 5.33,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Collision risk",
+   "reason": "car #13 in path, closing fast (TTC 0.7s)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 6,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -1.9,
+   "ego_speed_kmh": 14.5,
+   "object": {
+    "track_id": 13,
+    "class_name": "car",
+    "distance_m": 5.05,
+    "lateral_m": -2.42,
+    "ttc_s": 0.74,
+    "behavior": "SLOW LEAD"
+   },
+   "duration_s": 1.0
+  },
+  {
+   "id": 4,
+   "type": "decision",
+   "frame": 190,
+   "time_s": 6.33,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Car entering path",
+   "reason": "car #2 moving into path at 8.0 m, TTC 3.0s",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -1.9,
+   "ego_speed_kmh": 18.4,
+   "object": {
+    "track_id": 2,
+    "class_name": "car",
+    "distance_m": 7.99,
+    "lateral_m": 3.01,
+    "ttc_s": 2.95,
+    "behavior": "SIDE PASS"
+   },
+   "duration_s": 6.76
+  },
+  {
+   "id": 5,
+   "type": "decision",
+   "frame": 393,
+   "time_s": 13.09,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": -1.9,
+   "ego_speed_kmh": 22.0,
+   "object": null,
+   "duration_s": 0.77
+  },
+  {
+   "id": 6,
+   "type": "decision",
+   "frame": 416,
+   "time_s": 13.85,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Truck entering path",
+   "reason": "truck #119 moving into path at 7.7 m, TTC 10.4s",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 2,
+   "steering_deg": -0.1,
+   "ego_speed_kmh": 24.3,
+   "object": {
+    "track_id": 119,
+    "class_name": "truck",
+    "distance_m": 7.72,
+    "lateral_m": 3.33,
+    "ttc_s": 10.4,
+    "behavior": "SIDE PASS"
+   },
+   "duration_s": 3.56
+  },
+  {
+   "id": 7,
+   "type": "decision",
+   "frame": 523,
+   "time_s": 17.42,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": -0.0,
+   "ego_speed_kmh": 17.7,
+   "object": null,
+   "duration_s": 4.03
+  },
+  {
+   "id": 8,
+   "type": "decision",
+   "frame": 644,
+   "time_s": 21.45,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Slow vehicle ahead",
+   "reason": "motorcycle #192 ahead, closing (TTC 3.7s)",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -0.0,
+   "ego_speed_kmh": 14.1,
+   "object": {
+    "track_id": 192,
+    "class_name": "motorcycle",
+    "distance_m": 7.06,
+    "lateral_m": -1.37,
+    "ttc_s": 3.7,
+    "behavior": null
+   },
+   "duration_s": 4.03
+  },
+  {
+   "id": 9,
+   "type": "decision",
+   "frame": 765,
+   "time_s": 25.47,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": -0.0,
+   "ego_speed_kmh": 10.4,
+   "object": null,
+   "duration_s": 5.49
+  },
+  {
+   "id": 10,
+   "type": "decision",
+   "frame": 930,
+   "time_s": 30.97,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Pedestrian ahead",
+   "reason": "person #272 in path at 14 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 6,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": 1.8,
+   "ego_speed_kmh": 9.9,
+   "object": {
+    "track_id": 272,
+    "class_name": "person",
+    "distance_m": 14.09,
+    "lateral_m": -0.62,
+    "ttc_s": 8.8,
+    "behavior": null
+   },
+   "duration_s": 3.63
+  },
+  {
+   "id": 11,
+   "type": "accident",
+   "frame": 981,
+   "time_s": 32.67,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    282
+   ],
+   "workflow": null
+  },
+  {
+   "id": 12,
+   "type": "decision",
+   "frame": 1039,
+   "time_s": 34.6,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": -1.6,
+   "ego_speed_kmh": 14.1,
+   "object": null,
+   "duration_s": 13.72
+  }
+ ],
+ "segments": [
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 0,
+   "end_frame": 91,
+   "start_s": 0.0,
+   "duration_s": 3.06,
+   "event_id": 0
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 92,
+   "end_frame": 159,
+   "start_s": 3.06,
+   "duration_s": 2.26,
+   "event_id": 1
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 160,
+   "end_frame": 189,
+   "start_s": 5.33,
+   "duration_s": 1.0,
+   "event_id": 3
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 190,
+   "end_frame": 392,
+   "start_s": 6.33,
+   "duration_s": 6.76,
+   "event_id": 4
+  },
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 393,
+   "end_frame": 415,
+   "start_s": 13.09,
+   "duration_s": 0.77,
+   "event_id": 5
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 416,
+   "end_frame": 522,
+   "start_s": 13.85,
+   "duration_s": 3.56,
+   "event_id": 6
+  },
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 523,
+   "end_frame": 643,
+   "start_s": 17.42,
+   "duration_s": 4.03,
+   "event_id": 7
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 644,
+   "end_frame": 764,
+   "start_s": 21.45,
+   "duration_s": 4.03,
+   "event_id": 8
+  },
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 765,
+   "end_frame": 929,
+   "start_s": 25.47,
+   "duration_s": 5.49,
+   "event_id": 9
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 930,
+   "end_frame": 1038,
+   "start_s": 30.97,
+   "duration_s": 3.63,
+   "event_id": 10
+  },
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 1039,
+   "end_frame": 1450,
+   "start_s": 34.6,
+   "duration_s": 13.72,
+   "event_id": 12
+  }
+ ],
+ "rendered_video": "outputs/india_cvraman_pathsense.mp4"
+}

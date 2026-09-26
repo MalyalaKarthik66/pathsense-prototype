@@ -342,11 +342,19 @@ The site opens on a **landing page** (`#home`: product statement, an abstract ge
 road users and the ego path — no prototype imagery — and short "how it works" sections). **Try PathSense** goes
 straight into the app, whose navigation is only **Demo · Live · Emergency** (`#demo`, `#live`, `#emergency`).
 
-- **Demo** – processed drives from `outputs/` (only videos that currently exist), a player synced with per-frame
-  telemetry (`<name>_frames.json`): decision, reason, path status, speed, steering, nearest threat, distance, TTC;
-  a clickable decision timeline; **Upload** runs `main.run_pipeline` on the GPU with live progress and plays the result
-  (outputs go to `outputs/web/`). Videos are written as H.264 (`avc1`) so browsers can play them; older `mp4v`
-  renders are flagged.
+- **Demo** – **PathSense demos · Choose a scenario**: five built-in drives (below), then any local drives from
+  `outputs/` and uploads. A player synced with per-frame telemetry (`<name>_frames.json`): decision, reason, path
+  status, speed, steering, nearest threat, distance, TTC; a clickable decision timeline; Play / Replay.
+  **Upload video** opens the native file picker directly (the click handler only calls `input.click()`; the `accept`
+  list is extensions only, because a `video/*` MIME wildcard makes Chromium on Windows enumerate registered file
+  types before showing the dialog). After a file is chosen it is validated, uploaded, and `main.run_pipeline` runs with
+  live progress (outputs go to `outputs/web/`); failures show the HTTP status and the server's message.
+- **Built-in demos** – `demos/<clip>/` holds web encodes (H.264 960×540, same frames and frame rate, `+faststart`) of
+  the curated SIH drives `india_bangalore`, `india_newbel`, `india_cvraman`, `blr_iisc`, `ka_kadur` (CC0 footage,
+  L. Shyamal) with their unmodified events / frames / stats / timeline files, a poster, and `demos/catalog.json`.
+  They are committed to Git (about 76 MB in total, `.gitignore` re-includes only `demos/*/*_pathsense.mp4`), so a
+  fresh deployment has them. Rebuild from `outputs/` with `python build_demos.py` (needs `pip install imageio-ffmpeg`).
+  Served by `/demos/<path>` with HTTP range requests (seeking).
 - **Replay** (inside Demo) – key moments of the selected drive (BRAKE / SLOW DOWN onsets, cut-ins, crossings,
   oncoming, accident alerts; filters Key moments / Brake / Road users / All). Selecting one shows the decision, reason,
   object, distance, TTC, behaviour, path status and steering, and **Replay** plays it from 2 s before.
@@ -361,6 +369,15 @@ straight into the app, whose navigation is only **Demo · Live · Emergency** (`
 - The former Events and System pages were removed from the visitor-facing UI; their APIs remain
   (`/api/demos/<name>/events`, `/api/system`, `/api/system/run-tests`) for tooling and the presentation build.
 - Dark / light theme, responsive from phone to desktop.
+
+**Deployment (Render).** Start command `gunicorn app:app`; `gunicorn.conf.py` (read automatically) binds `$PORT`
+and runs one process with threads, because upload jobs and the live session are held in that process's memory.
+`/api/capabilities` reports whether this server can run the pipeline without importing torch: the RAM available to
+the container is compared with the pipeline's measured peak (about 1.6 GB on CPU). On the 512 MB Render Free
+instance, upload processing and Live are therefore reported as unavailable (HTTP 503 with the reason) instead of the
+worker being killed mid-job; the landing page, the built-in demos and the Emergency simulation work normally.
+`PATHSENSE_INFERENCE=on|off` overrides the check. Render's filesystem is ephemeral: uploads and their outputs last only
+until the next restart or deploy.
 
 ## 16. Accident detection and emergency response (DEMO / SIMULATION)
 

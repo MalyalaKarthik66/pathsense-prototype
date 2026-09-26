@@ -1,0 +1,107 @@
+{
+  "input_video": "data/samples/india_cvraman.webm",
+  "output_video": "outputs/india_cvraman_pathsense.mp4",
+  "input_resolution": [
+    1280,
+    720
+  ],
+  "input_fps": 30.03,
+  "input_reported_frames": 1452,
+  "frames_processed": 1451,
+  "processing_seconds": 165.95,
+  "processing_fps": 8.74,
+  "realtime_factor": 0.291,
+  "device": "cuda:0",
+  "gpu_name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "peak_torch_gpu_mem_mb": 438.3,
+  "stage_ms_per_frame": {
+    "detect_track": 14.3,
+    "auto_classifier": 0.3,
+    "depth": 64.6,
+    "ttc": 0.0,
+    "ego_motion": 15.4,
+    "costmap": 0.4,
+    "planner": 2.5,
+    "decision": 0.4,
+    "accident": 0.7,
+    "render_write": 13.9
+  },
+  "detections_total": 4809,
+  "frames_with_detections": 1451,
+  "unique_track_ids": 106,
+  "depth_inference_frames": 1451,
+  "ttc_estimates": 1458,
+  "hazard_counts": {
+    "SAFE": 4228,
+    "CAUTION": 382,
+    "CRITICAL": 199
+  },
+  "ego_frames_with_flow": 1448,
+  "final_speed_kmh": 13.0,
+  "final_travel_m": 211.84,
+  "bev_frames_with_obstacles": 1451,
+  "planner_distinct_candidates": 5,
+  "planner_blocked_frames": 0,
+  "max_abs_steer_deg": 2.85,
+  "mean_abs_steer_deg": 0.84,
+  "frames_with_critical_pct": 13.2,
+  "planner_blocked_pct": 0.0,
+  "decision_label_pct": {
+    "GO STRAIGHT": 56.0,
+    "SLOW DOWN": 41.9,
+    "BRAKE": 2.1
+  },
+  "decision_state_pct": {
+    "GO": 56.0,
+    "CAUTION": 41.9,
+    "BRAKE": 2.1
+  },
+  "decision_transitions": 10,
+  "decision_transitions_per_min": 12.4,
+  "brake_episodes": 1,
+  "brake_episode_median_s": 1.0,
+  "brake_episode_list": [
+    {
+      "start_frame": 160,
+      "end_frame": 189,
+      "seconds": 1.0,
+      "reason": "car #13 in path, closing fast (TTC 0.7s)"
+    }
+  ],
+  "depth_geometry": {
+    "mode": "ground",
+    "horizon_px": 380.2,
+    "camera_height_m": 1.21,
+    "source": "self-calibrated",
+    "calibrated": true,
+    "last_fit_r2": 1.0
+  },
+  "depth_heuristic_fallback_frames": 0,
+  "behavior_counts": {
+    "SLOW LEAD": 1,
+    "SIDE PASS": 6
+  },
+  "video_codec": "avc1",
+  "accident": {
+    "enabled": true,
+    "possible_events": 1,
+    "unconfirmed_events": 1,
+    "confirmed": []
+  },
+  "auto_rickshaw": {
+    "enabled": true,
+    "confirmed_tracks": 1,
+    "crops_classified": 46
+  },
+  "decision_events": 11,
+  "output_check": {
+    "opened": true,
+    "frames": 1451,
+    "width": 1280,
+    "height": 720,
+    "fps": 30.03
+  },
+  "frames_json": "outputs/india_cvraman_frames.json",
+  "events_json": "outputs/india_cvraman_events.json",
+  "timeline_png": "outputs/india_cvraman_timeline.png"
+}

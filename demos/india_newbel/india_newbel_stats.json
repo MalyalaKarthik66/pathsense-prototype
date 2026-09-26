@@ -1,0 +1,146 @@
+{
+  "input_video": "data/samples/india_newbel.webm",
+  "output_video": "outputs/india_newbel_pathsense.mp4",
+  "input_resolution": [
+    1280,
+    720
+  ],
+  "input_fps": 30.0,
+  "input_reported_frames": 2885,
+  "frames_processed": 2885,
+  "processing_seconds": 329.27,
+  "processing_fps": 8.76,
+  "realtime_factor": 0.292,
+  "device": "cuda:0",
+  "gpu_name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "peak_torch_gpu_mem_mb": 438.3,
+  "stage_ms_per_frame": {
+    "detect_track": 14.2,
+    "auto_classifier": 0.1,
+    "depth": 64.7,
+    "ttc": 0.0,
+    "ego_motion": 15.7,
+    "costmap": 0.3,
+    "planner": 2.5,
+    "decision": 0.3,
+    "accident": 0.7,
+    "render_write": 13.8
+  },
+  "detections_total": 7653,
+  "frames_with_detections": 2723,
+  "unique_track_ids": 274,
+  "depth_inference_frames": 2885,
+  "ttc_estimates": 4332,
+  "hazard_counts": {
+    "SAFE": 4889,
+    "CAUTION": 1464,
+    "CRITICAL": 1300
+  },
+  "ego_frames_with_flow": 2549,
+  "final_speed_kmh": 4.9,
+  "final_travel_m": 499.97,
+  "bev_frames_with_obstacles": 2673,
+  "planner_distinct_candidates": 14,
+  "planner_blocked_frames": 28,
+  "max_abs_steer_deg": 13.24,
+  "mean_abs_steer_deg": 0.83,
+  "frames_with_critical_pct": 34.4,
+  "planner_blocked_pct": 1.0,
+  "decision_label_pct": {
+    "GO STRAIGHT": 47.7,
+    "SLOW DOWN": 43.2,
+    "BRAKE": 8.8,
+    "NO SAFE PATH - BRAKE": 0.3
+  },
+  "decision_state_pct": {
+    "GO": 47.7,
+    "CAUTION": 43.2,
+    "BRAKE": 9.2
+  },
+  "decision_transitions": 35,
+  "decision_transitions_per_min": 21.8,
+  "brake_episodes": 7,
+  "brake_episode_median_s": 1.0,
+  "brake_episode_list": [
+    {
+      "start_frame": 1174,
+      "end_frame": 1215,
+      "seconds": 1.4,
+      "reason": "all candidate paths blocked"
+    },
+    {
+      "start_frame": 1259,
+      "end_frame": 1288,
+      "seconds": 1.0,
+      "reason": "bus #451 in path, closing fast (TTC 0.9s)"
+    },
+    {
+      "start_frame": 1384,
+      "end_frame": 1413,
+      "seconds": 1.0,
+      "reason": "car #477 in path, closing (TTC 1.8s, 14 m)"
+    },
+    {
+      "start_frame": 1467,
+      "end_frame": 1496,
+      "seconds": 1.0,
+      "reason": "person #588 in path, closing (TTC 1.9s, 11 m)"
+    },
+    {
+      "start_frame": 1572,
+      "end_frame": 1617,
+      "seconds": 1.53,
+      "reason": "car #677 moving into path at 8.9 m, TTC 0.8s"
+    },
+    {
+      "start_frame": 1742,
+      "end_frame": 1797,
+      "seconds": 1.87,
+      "reason": "person #786 in path, closing fast (TTC 0.5s)"
+    },
+    {
+      "start_frame": 2740,
+      "end_frame": 2769,
+      "seconds": 1.0,
+      "reason": "car #1227 in path, closing (TTC 1.3s, 6 m)"
+    }
+  ],
+  "depth_geometry": {
+    "mode": "ground",
+    "horizon_px": 503.5,
+    "camera_height_m": 0.93,
+    "source": "self-calibrated",
+    "calibrated": true,
+    "last_fit_r2": 0.31
+  },
+  "depth_heuristic_fallback_frames": 0,
+  "behavior_counts": {
+    "SIDE PASS": 76,
+    "CUT-IN": 1,
+    "ONCOMING": 5,
+    "SLOW LEAD": 1
+  },
+  "video_codec": "avc1",
+  "accident": {
+    "enabled": true,
+    "possible_events": 4,
+    "unconfirmed_events": 4,
+    "confirmed": []
+  },
+  "auto_rickshaw": {
+    "enabled": true,
+    "confirmed_tracks": 1,
+    "crops_classified": 39
+  },
+  "decision_events": 38,
+  "output_check": {
+    "opened": true,
+    "frames": 2885,
+    "width": 1280,
+    "height": 720,
+    "fps": 30.0
+  },
+  "frames_json": "outputs/india_newbel_frames.json",
+  "events_json": "outputs/india_newbel_events.json",
+  "timeline_png": "outputs/india_newbel_timeline.png"
+}

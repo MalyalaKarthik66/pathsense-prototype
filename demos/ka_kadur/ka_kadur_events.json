@@ -1,0 +1,36 @@
+{
+ "video": "data/candidates/ka_kadur.webm",
+ "fps": 29.583333333333332,
+ "frames": 1408,
+ "events": [
+  {
+   "id": 0,
+   "type": "decision",
+   "frame": 0,
+   "time_s": 0.0,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": 0.0,
+   "ego_speed_kmh": 0.0,
+   "object": null,
+   "duration_s": 47.59
+  }
+ ],
+ "segments": [
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 0,
+   "end_frame": 1407,
+   "start_s": 0.0,
+   "duration_s": 47.59,
+   "event_id": 0
+  }
+ ],
+ "rendered_video": "outputs/ka_kadur_pathsense.mp4"
+}

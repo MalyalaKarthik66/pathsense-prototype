@@ -1,0 +1,93 @@
+{
+  "input_video": "data/candidates/ka_kadur.webm",
+  "output_video": "outputs/ka_kadur_pathsense.mp4",
+  "input_resolution": [
+    1280,
+    720
+  ],
+  "input_fps": 29.58,
+  "input_reported_frames": 1409,
+  "frames_processed": 1408,
+  "processing_seconds": 156.4,
+  "processing_fps": 9.0,
+  "realtime_factor": 0.304,
+  "device": "cuda:0",
+  "gpu_name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "peak_torch_gpu_mem_mb": 438.3,
+  "stage_ms_per_frame": {
+    "detect_track": 12.2,
+    "auto_classifier": 0.1,
+    "depth": 64.8,
+    "ttc": 0.0,
+    "ego_motion": 15.1,
+    "costmap": 0.1,
+    "planner": 2.5,
+    "decision": 0.0,
+    "accident": 0.7,
+    "render_write": 13.6
+  },
+  "detections_total": 552,
+  "frames_with_detections": 477,
+  "unique_track_ids": 10,
+  "depth_inference_frames": 1408,
+  "ttc_estimates": 271,
+  "hazard_counts": {
+    "SAFE": 415,
+    "CAUTION": 49,
+    "CRITICAL": 88
+  },
+  "ego_frames_with_flow": 1363,
+  "final_speed_kmh": 42.5,
+  "final_travel_m": 526.28,
+  "bev_frames_with_obstacles": 282,
+  "planner_distinct_candidates": 2,
+  "planner_blocked_frames": 0,
+  "max_abs_steer_deg": 1.86,
+  "mean_abs_steer_deg": 0.03,
+  "frames_with_critical_pct": 5.8,
+  "planner_blocked_pct": 0.0,
+  "decision_label_pct": {
+    "GO STRAIGHT": 100.0
+  },
+  "decision_state_pct": {
+    "GO": 100.0
+  },
+  "decision_transitions": 0,
+  "decision_transitions_per_min": 0.0,
+  "brake_episodes": 0,
+  "brake_episode_median_s": 0.0,
+  "brake_episode_list": [],
+  "depth_geometry": {
+    "mode": "ground",
+    "horizon_px": 396.0,
+    "camera_height_m": 1.3,
+    "source": "default",
+    "calibrated": true,
+    "last_fit_r2": 1.0
+  },
+  "depth_heuristic_fallback_frames": 0,
+  "behavior_counts": {},
+  "video_codec": "avc1",
+  "accident": {
+    "enabled": true,
+    "possible_events": 0,
+    "unconfirmed_events": 0,
+    "confirmed": []
+  },
+  "auto_rickshaw": {
+    "enabled": true,
+    "confirmed_tracks": 0,
+    "crops_classified": 12
+  },
+  "decision_events": 1,
+  "output_check": {
+    "opened": true,
+    "frames": 1408,
+    "width": 1280,
+    "height": 720,
+    "fps": 29.58
+  },
+  "frames_json": "outputs/ka_kadur_frames.json",
+  "events_json": "outputs/ka_kadur_events.json",
+  "timeline_png": "outputs/ka_kadur_timeline.png"
+}

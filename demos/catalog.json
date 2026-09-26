@@ -1,0 +1,35 @@
+{
+ "source": "CC0 footage by L. Shyamal (Wikimedia Commons), processed by the PathSense pipeline",
+ "demos": [
+  {
+   "clip": "india_bangalore",
+   "title": "Dense mixed traffic",
+   "place": "Nandidurga Rd, Bengaluru",
+   "desc": "Autos, two-wheelers and a signal queue. Pedestrians beside the corridor do not trigger BRAKE; a pedestrian in the path does."
+  },
+  {
+   "clip": "india_newbel",
+   "title": "Narrow road, oncoming traffic",
+   "place": "New BEL Rd, Bengaluru",
+   "desc": "Oncoming vehicles on their own side keep the path clear; one entering the path escalates to SLOW DOWN and BRAKE, and the planner picks an offset trajectory."
+  },
+  {
+   "clip": "india_cvraman",
+   "title": "Arterial road, slow vehicle ahead",
+   "place": "C V Raman Rd, Bengaluru",
+   "desc": "A slow vehicle ahead raises SLOW DOWN, escalates briefly to BRAKE, then clears; cut-ins on an arterial."
+  },
+  {
+   "clip": "blr_iisc",
+   "title": "Pedestrians on the carriageway",
+   "place": "IISc campus, Bengaluru",
+   "desc": "People walking on the road itself and two-wheelers weaving through: the decision follows who is in the ego path."
+  },
+  {
+   "clip": "ka_kadur",
+   "title": "Rural highway, clear road",
+   "place": "Kadur - Chikmagalur, Karnataka",
+   "desc": "Curving two-lane highway with nothing in the path: GO STRAIGHT throughout, no false alarms."
+  }
+ ]
+}

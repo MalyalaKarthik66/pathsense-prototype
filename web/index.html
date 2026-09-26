@@ -68,7 +68,7 @@
     <p class="section-eyebrow">Experience</p>
     <h2 class="section-h">See it on real Indian roads.</h2>
     <div class="experience">
-      <a class="exp" href="#demo"><span class="exp-k">Demo</span><span class="exp-t">Replay processed drives from Bengaluru and Delhi, or upload your own dashcam video.</span><span class="exp-go" aria-hidden="true">&rarr;</span></a>
+      <a class="exp" href="#demo"><span class="exp-k">Demo</span><span class="exp-t">Play built-in drives from Bengaluru and rural Karnataka, or upload your own dashcam video.</span><span class="exp-go" aria-hidden="true">&rarr;</span></a>
       <a class="exp" href="#live"><span class="exp-k">Live</span><span class="exp-t">Point a phone camera at the road and watch decisions appear as you move.</span><span class="exp-go" aria-hidden="true">&rarr;</span></a>
       <a class="exp" href="#emergency"><span class="exp-k">Emergency</span><span class="exp-t">A confirmation-first accident response, shown in simulation.</span><span class="exp-go" aria-hidden="true">&rarr;</span></a>
     </div>
@@ -104,10 +104,11 @@
       <div>
         <div class="player" id="player">
           <video id="video" controls playsinline preload="metadata"></video>
+          <button class="btn btn-primary player-replay" id="replayBtn" hidden><svg><use href="#i-play"/></svg>Replay</button>
           <div class="player-empty" id="playerEmpty">
             <div>
               <div class="eyebrow" style="color:#2dd4bf">PathSense Demo</div>
-              <h3>Choose a processed drive or upload your own</h3>
+              <h3>Choose a demo scenario or upload your own</h3>
               <p>Every decision shown is produced by the PathSense pipeline on the video itself.</p>
               <button class="btn btn-primary" data-action="upload"><svg><use href="#i-up"/></svg>Upload video</button>
             </div>
@@ -152,6 +153,18 @@
       </aside>
     </div>
 
+    <section class="demos" id="demos" aria-labelledby="demosTitle">
+      <div class="section-title">
+        <div><p class="eyebrow">PathSense demos</p><h2 id="demosTitle">Choose a scenario</h2>
+          <p>Real Indian drives processed by the PathSense pipeline. Select one to play it with its decisions.</p></div>
+        <div class="upload-box">
+          <button class="btn btn-primary" data-action="upload"><svg><use href="#i-up"/></svg>Upload video</button>
+          <span class="up-hint" id="upHint" hidden></span>
+        </div>
+      </div>
+      <div class="library" id="library"></div>
+    </section>
+
     <section class="replay" id="replay" aria-labelledby="replayTitle">
       <div class="section-title">
         <div><h2 id="replayTitle">Replay</h2><p>Key moments in this drive. Select one to replay it with the reason behind the decision.</p></div>
@@ -170,11 +183,12 @@
       </div>
     </section>
 
-    <div class="section-title">
-      <div><h2>Drives</h2><p>Processed validation drives and your uploads</p></div>
-      <button class="btn btn-primary" data-action="upload"><svg><use href="#i-up"/></svg>Upload</button>
+    <div id="localWrap" hidden>
+      <div class="section-title">
+        <div><h2>Your drives</h2><p>Processed on this machine (local outputs and uploads)</p></div>
+      </div>
+      <div class="library" id="libraryLocal"></div>
     </div>
-    <div class="library" id="library"></div>
   </section>
 
   <!-- ============================== LIVE ============================== -->
@@ -277,11 +291,11 @@
   <div class="modal-card">
     <div class="modal-head"><h3 id="upTitle">Process a video</h3><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
     <div class="modal-body">
-      <label class="drop" id="drop">
-        <input type="file" id="fileInput" accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.m4v" hidden>
+      <label class="drop" id="drop" for="fileInput">
         <div style="font-weight:700">Drop a dashcam video here or tap to choose</div>
-        <div class="muted" style="font-size:13px;margin-top:6px">MP4, MOV, AVI, MKV, WEBM · processed on this PC's GPU</div>
+        <div class="muted" style="font-size:13px;margin-top:6px">MP4, MOV, AVI, MKV, WEBM, M4V · processed by the PathSense pipeline on the server</div>
       </label>
+      <div class="callout warn" id="upError" hidden style="margin-top:14px"></div>
       <div id="upProgress" hidden style="margin-top:18px">
         <div class="row" style="justify-content:space-between;margin-bottom:8px"><strong id="upStage">Uploading</strong><span class="mono muted" id="upPct">0%</span></div>
         <div class="progress"><div id="upBar"></div></div>
@@ -295,6 +309,8 @@
     </div>
   </div>
 </div>
+
+<input type="file" id="fileInput" accept=".mp4,.mov,.avi,.mkv,.webm,.m4v" hidden>
 
 <!-- emergency modal -->
 <div class="modal emergency" id="emModal" role="alertdialog" aria-modal="true" aria-labelledby="emTitle">

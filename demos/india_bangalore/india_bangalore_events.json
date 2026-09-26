@@ -1,0 +1,971 @@
+{
+ "video": "data/samples/india_bangalore.webm",
+ "fps": 30.0,
+ "frames": 3803,
+ "events": [
+  {
+   "id": 0,
+   "type": "decision",
+   "frame": 0,
+   "time_s": 0.0,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Monitoring",
+   "reason": "monitoring: person #4 in path at 12 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 4,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": 1.1,
+   "ego_speed_kmh": 0.0,
+   "object": null,
+   "duration_s": 1.13
+  },
+  {
+   "id": 1,
+   "type": "decision",
+   "frame": 34,
+   "time_s": 1.13,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Collision risk",
+   "reason": "person #6 in path, closing (TTC 1.5s, 9 m)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": 2.1,
+   "ego_speed_kmh": 21.1,
+   "object": {
+    "track_id": 6,
+    "class_name": "person",
+    "distance_m": 9.42,
+    "lateral_m": -1.48,
+    "ttc_s": 1.52,
+    "behavior": null
+   },
+   "duration_s": 0.1
+  },
+  {
+   "id": 2,
+   "type": "decision",
+   "frame": 37,
+   "time_s": 1.23,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Collision risk",
+   "reason": "person #6 in path, closing (TTC 1.6s, 9 m)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 7,
+   "n_arcs": 17,
+   "threats": 3,
+   "steering_deg": 2.0,
+   "ego_speed_kmh": 21.0,
+   "object": {
+    "track_id": 6,
+    "class_name": "person",
+    "distance_m": 9.11,
+    "lateral_m": -1.63,
+    "ttc_s": 1.65,
+    "behavior": null
+   },
+   "duration_s": 1.0
+  },
+  {
+   "id": 3,
+   "type": "decision",
+   "frame": 67,
+   "time_s": 2.23,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Clearing after BRAKE",
+   "reason": "holding: person #6 in path, closing (TTC 1.6s, 9 m)",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": 1.8,
+   "ego_speed_kmh": 21.8,
+   "object": {
+    "track_id": 6,
+    "class_name": "person",
+    "distance_m": 8.55,
+    "lateral_m": -1.7,
+    "ttc_s": 1.72,
+    "behavior": null
+   },
+   "duration_s": 3.1
+  },
+  {
+   "id": 4,
+   "type": "decision",
+   "frame": 160,
+   "time_s": 5.33,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": 0.0,
+   "ego_speed_kmh": 17.6,
+   "object": null,
+   "duration_s": 4.4
+  },
+  {
+   "id": 5,
+   "type": "accident",
+   "frame": 263,
+   "time_s": 8.77,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    62
+   ],
+   "workflow": null
+  },
+  {
+   "id": 6,
+   "type": "decision",
+   "frame": 292,
+   "time_s": 9.73,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following car #73 at 2.9 m",
+   "path_status": "CLEAR",
+   "blocked_arcs": 0,
+   "n_arcs": 17,
+   "threats": 2,
+   "steering_deg": 1.9,
+   "ego_speed_kmh": 10.0,
+   "object": {
+    "track_id": 73,
+    "class_name": "car",
+    "distance_m": 2.85,
+    "lateral_m": 1.84,
+    "ttc_s": 7.1,
+    "behavior": null
+   },
+   "duration_s": 5.03
+  },
+  {
+   "id": 7,
+   "type": "behavior",
+   "frame": 314,
+   "time_s": 10.47,
+   "behavior": "CUT-IN",
+   "ego_speed_kmh": 12.6,
+   "object": {
+    "track_id": 62,
+    "class_name": "auto-rickshaw",
+    "distance_m": 8.49,
+    "lateral_m": -2.06,
+    "ttc_s": 9.71,
+    "closing_speed_mps": 2.5
+   }
+  },
+  {
+   "id": 8,
+   "type": "accident",
+   "frame": 420,
+   "time_s": 14.0,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    103
+   ],
+   "workflow": null
+  },
+  {
+   "id": 9,
+   "type": "decision",
+   "frame": 443,
+   "time_s": 14.77,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 6,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": -1.9,
+   "ego_speed_kmh": 13.4,
+   "object": null,
+   "duration_s": 2.3
+  },
+  {
+   "id": 10,
+   "type": "decision",
+   "frame": 512,
+   "time_s": 17.07,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following auto-rickshaw #62 at 6.9 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 1,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -1.5,
+   "ego_speed_kmh": 24.3,
+   "object": {
+    "track_id": 62,
+    "class_name": "auto-rickshaw",
+    "distance_m": 6.92,
+    "lateral_m": -0.23,
+    "ttc_s": 22.7,
+    "behavior": null
+   },
+   "duration_s": 13.83
+  },
+  {
+   "id": 11,
+   "type": "accident",
+   "frame": 551,
+   "time_s": 18.37,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    170
+   ],
+   "workflow": null
+  },
+  {
+   "id": 12,
+   "type": "accident",
+   "frame": 664,
+   "time_s": 22.13,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    202
+   ],
+   "workflow": null
+  },
+  {
+   "id": 13,
+   "type": "accident",
+   "frame": 858,
+   "time_s": 28.6,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    378
+   ],
+   "workflow": null
+  },
+  {
+   "id": 14,
+   "type": "decision",
+   "frame": 927,
+   "time_s": 30.9,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Collision risk",
+   "reason": "car #429 in path, closing fast (TTC 0.4s)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 7,
+   "n_arcs": 17,
+   "threats": 2,
+   "steering_deg": -1.0,
+   "ego_speed_kmh": 29.8,
+   "object": {
+    "track_id": 429,
+    "class_name": "car",
+    "distance_m": 3.48,
+    "lateral_m": 2.29,
+    "ttc_s": 0.4,
+    "behavior": null
+   },
+   "duration_s": 1.0
+  },
+  {
+   "id": 15,
+   "type": "decision",
+   "frame": 957,
+   "time_s": 31.9,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following auto-rickshaw #62 at 3.8 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 6,
+   "n_arcs": 17,
+   "threats": 3,
+   "steering_deg": -2.8,
+   "ego_speed_kmh": 28.5,
+   "object": {
+    "track_id": 62,
+    "class_name": "auto-rickshaw",
+    "distance_m": 3.84,
+    "lateral_m": -0.25,
+    "ttc_s": null,
+    "behavior": null
+   },
+   "duration_s": 0.13
+  },
+  {
+   "id": 16,
+   "type": "decision",
+   "frame": 961,
+   "time_s": 32.03,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Collision risk",
+   "reason": "car #440 in path, closing fast (TTC 0.4s)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 3,
+   "steering_deg": -1.8,
+   "ego_speed_kmh": 24.5,
+   "object": {
+    "track_id": 440,
+    "class_name": "car",
+    "distance_m": 4.34,
+    "lateral_m": 2.26,
+    "ttc_s": 0.39,
+    "behavior": null
+   },
+   "duration_s": 1.03
+  },
+  {
+   "id": 17,
+   "type": "behavior",
+   "frame": 964,
+   "time_s": 32.13,
+   "behavior": "ONCOMING",
+   "ego_speed_kmh": 22.9,
+   "object": {
+    "track_id": 440,
+    "class_name": "car",
+    "distance_m": 3.71,
+    "lateral_m": 2.18,
+    "ttc_s": 0.38,
+    "closing_speed_mps": 9.87
+   }
+  },
+  {
+   "id": 18,
+   "type": "decision",
+   "frame": 992,
+   "time_s": 33.07,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following auto-rickshaw #62 at 4.1 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 2,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -0.3,
+   "ego_speed_kmh": 37.3,
+   "object": {
+    "track_id": 62,
+    "class_name": "auto-rickshaw",
+    "distance_m": 4.12,
+    "lateral_m": -0.46,
+    "ttc_s": null,
+    "behavior": null
+   },
+   "duration_s": 46.0
+  },
+  {
+   "id": 19,
+   "type": "behavior",
+   "frame": 1783,
+   "time_s": 59.43,
+   "behavior": "CROSSING",
+   "ego_speed_kmh": 54.6,
+   "object": {
+    "track_id": 777,
+    "class_name": "person",
+    "distance_m": 10.24,
+    "lateral_m": -4.51,
+    "ttc_s": 2.81,
+    "closing_speed_mps": 10.66
+   }
+  },
+  {
+   "id": 20,
+   "type": "accident",
+   "frame": 2115,
+   "time_s": 70.5,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    928
+   ],
+   "workflow": null
+  },
+  {
+   "id": 21,
+   "type": "behavior",
+   "frame": 2297,
+   "time_s": 76.57,
+   "behavior": "CUT-IN",
+   "ego_speed_kmh": 26.3,
+   "object": {
+    "track_id": 62,
+    "class_name": "auto-rickshaw",
+    "distance_m": 4.72,
+    "lateral_m": -1.38,
+    "ttc_s": null,
+    "closing_speed_mps": 4.1
+   }
+  },
+  {
+   "id": 22,
+   "type": "decision",
+   "frame": 2372,
+   "time_s": 79.07,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Collision risk",
+   "reason": "car #1063 in path, closing (TTC 1.3s, 13 m)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 2,
+   "steering_deg": -4.8,
+   "ego_speed_kmh": 20.9,
+   "object": {
+    "track_id": 1063,
+    "class_name": "car",
+    "distance_m": 13.31,
+    "lateral_m": -0.49,
+    "ttc_s": 1.31,
+    "behavior": null
+   },
+   "duration_s": 1.0
+  },
+  {
+   "id": 23,
+   "type": "decision",
+   "frame": 2402,
+   "time_s": 80.07,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following car #352 at 2.5 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 6,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -1.9,
+   "ego_speed_kmh": 13.6,
+   "object": {
+    "track_id": 352,
+    "class_name": "car",
+    "distance_m": 2.49,
+    "lateral_m": -1.29,
+    "ttc_s": null,
+    "behavior": null
+   },
+   "duration_s": 3.77
+  },
+  {
+   "id": 24,
+   "type": "behavior",
+   "frame": 2490,
+   "time_s": 83.0,
+   "behavior": "ONCOMING",
+   "ego_speed_kmh": 11.2,
+   "object": {
+    "track_id": 1102,
+    "class_name": "car",
+    "distance_m": 13.34,
+    "lateral_m": 2.91,
+    "ttc_s": 2.09,
+    "closing_speed_mps": 6.39
+   }
+  },
+  {
+   "id": 25,
+   "type": "decision",
+   "frame": 2515,
+   "time_s": 83.83,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Collision risk",
+   "reason": "car #1076 in path, closing (TTC 1.5s, 4 m)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 3,
+   "steering_deg": -0.2,
+   "ego_speed_kmh": 14.5,
+   "object": {
+    "track_id": 1076,
+    "class_name": "car",
+    "distance_m": 3.85,
+    "lateral_m": 2.13,
+    "ttc_s": 1.54,
+    "behavior": "SIDE PASS"
+   },
+   "duration_s": 1.53
+  },
+  {
+   "id": 26,
+   "type": "behavior",
+   "frame": 2558,
+   "time_s": 85.27,
+   "behavior": "SLOW LEAD",
+   "ego_speed_kmh": 15.2,
+   "object": {
+    "track_id": 930,
+    "class_name": "auto-rickshaw",
+    "distance_m": 10.48,
+    "lateral_m": 0.76,
+    "ttc_s": null,
+    "closing_speed_mps": 3.56
+   }
+  },
+  {
+   "id": 27,
+   "type": "decision",
+   "frame": 2561,
+   "time_s": 85.37,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Vehicle closing beside path",
+   "reason": "motorcycle #1182 closing beside path (TTC 0.9s)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 7,
+   "n_arcs": 17,
+   "threats": 4,
+   "steering_deg": -3.7,
+   "ego_speed_kmh": 18.9,
+   "object": {
+    "track_id": 1182,
+    "class_name": "motorcycle",
+    "distance_m": 4.62,
+    "lateral_m": 2.11,
+    "ttc_s": 0.86,
+    "behavior": "SIDE PASS"
+   },
+   "duration_s": 4.4
+  },
+  {
+   "id": 28,
+   "type": "behavior",
+   "frame": 2563,
+   "time_s": 85.43,
+   "behavior": "ONCOMING",
+   "ego_speed_kmh": 20.0,
+   "object": {
+    "track_id": 1134,
+    "class_name": "car",
+    "distance_m": 11.69,
+    "lateral_m": 2.94,
+    "ttc_s": 2.79,
+    "closing_speed_mps": 8.62
+   }
+  },
+  {
+   "id": 29,
+   "type": "behavior",
+   "frame": 2685,
+   "time_s": 89.5,
+   "behavior": "ONCOMING",
+   "ego_speed_kmh": 19.3,
+   "object": {
+    "track_id": 1225,
+    "class_name": "car",
+    "distance_m": 8.55,
+    "lateral_m": 2.72,
+    "ttc_s": 2.81,
+    "closing_speed_mps": 10.17
+   }
+  },
+  {
+   "id": 30,
+   "type": "decision",
+   "frame": 2693,
+   "time_s": 89.77,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Oncoming vehicle - path conflict",
+   "reason": "car #1225 in path, closing (TTC 1.2s, 6 m)",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 3,
+   "steering_deg": -1.6,
+   "ego_speed_kmh": 21.2,
+   "object": {
+    "track_id": 1225,
+    "class_name": "car",
+    "distance_m": 5.97,
+    "lateral_m": 2.22,
+    "ttc_s": 1.17,
+    "behavior": "ONCOMING"
+   },
+   "duration_s": 1.5
+  },
+  {
+   "id": 31,
+   "type": "decision",
+   "frame": 2738,
+   "time_s": 91.27,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following car #352 at 4.4 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 7,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": -1.6,
+   "ego_speed_kmh": 20.6,
+   "object": {
+    "track_id": 352,
+    "class_name": "car",
+    "distance_m": 4.37,
+    "lateral_m": -0.23,
+    "ttc_s": null,
+    "behavior": null
+   },
+   "duration_s": 7.67
+  },
+  {
+   "id": 32,
+   "type": "decision",
+   "frame": 2968,
+   "time_s": 98.93,
+   "decision": "BRAKE",
+   "state": "BRAKE",
+   "title": "Car entering path",
+   "reason": "car #1348 moving into path at 9.7 m, TTC 1.4s",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 2,
+   "steering_deg": 1.7,
+   "ego_speed_kmh": 17.1,
+   "object": {
+    "track_id": 1348,
+    "class_name": "car",
+    "distance_m": 9.71,
+    "lateral_m": 3.29,
+    "ttc_s": 1.45,
+    "behavior": null
+   },
+   "duration_s": 1.0
+  },
+  {
+   "id": 33,
+   "type": "decision",
+   "frame": 2998,
+   "time_s": 99.93,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following car #352 at 5.4 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": 0.0,
+   "ego_speed_kmh": 18.8,
+   "object": {
+    "track_id": 352,
+    "class_name": "car",
+    "distance_m": 5.36,
+    "lateral_m": -0.23,
+    "ttc_s": null,
+    "behavior": null
+   },
+   "duration_s": 1.2
+  },
+  {
+   "id": 34,
+   "type": "decision",
+   "frame": 3034,
+   "time_s": 101.13,
+   "decision": "GO STRAIGHT",
+   "state": "GO",
+   "title": "Path clear",
+   "reason": "clear corridor",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 9,
+   "n_arcs": 17,
+   "threats": 0,
+   "steering_deg": 0.0,
+   "ego_speed_kmh": 16.5,
+   "object": null,
+   "duration_s": 0.43
+  },
+  {
+   "id": 35,
+   "type": "decision",
+   "frame": 3047,
+   "time_s": 101.57,
+   "decision": "SLOW DOWN",
+   "state": "CAUTION",
+   "title": "Following closely",
+   "reason": "following car #352 at 6.0 m",
+   "path_status": "PARTIAL",
+   "blocked_arcs": 8,
+   "n_arcs": 17,
+   "threats": 1,
+   "steering_deg": 0.0,
+   "ego_speed_kmh": 20.0,
+   "object": {
+    "track_id": 352,
+    "class_name": "car",
+    "distance_m": 5.96,
+    "lateral_m": -0.29,
+    "ttc_s": null,
+    "behavior": null
+   },
+   "duration_s": 25.2
+  },
+  {
+   "id": 36,
+   "type": "accident",
+   "frame": 3147,
+   "time_s": 104.9,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    1452
+   ],
+   "workflow": null
+  },
+  {
+   "id": 37,
+   "type": "accident",
+   "frame": 3287,
+   "time_s": 109.57,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    1518
+   ],
+   "workflow": null
+  },
+  {
+   "id": 38,
+   "type": "accident",
+   "frame": 3524,
+   "time_s": 117.47,
+   "accident_state": "POSSIBLE",
+   "confidence": 0.4,
+   "cues": [
+    "DISRUPTION"
+   ],
+   "involved_track_ids": [
+    1660
+   ],
+   "workflow": null
+  }
+ ],
+ "segments": [
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 0,
+   "end_frame": 33,
+   "start_s": 0.0,
+   "duration_s": 1.13,
+   "event_id": 0
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 34,
+   "end_frame": 36,
+   "start_s": 1.13,
+   "duration_s": 0.1,
+   "event_id": 1
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 37,
+   "end_frame": 66,
+   "start_s": 1.23,
+   "duration_s": 1.0,
+   "event_id": 2
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 67,
+   "end_frame": 159,
+   "start_s": 2.23,
+   "duration_s": 3.1,
+   "event_id": 3
+  },
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 160,
+   "end_frame": 291,
+   "start_s": 5.33,
+   "duration_s": 4.4,
+   "event_id": 4
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 292,
+   "end_frame": 442,
+   "start_s": 9.73,
+   "duration_s": 5.03,
+   "event_id": 6
+  },
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 443,
+   "end_frame": 511,
+   "start_s": 14.77,
+   "duration_s": 2.3,
+   "event_id": 9
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 512,
+   "end_frame": 926,
+   "start_s": 17.07,
+   "duration_s": 13.83,
+   "event_id": 10
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 927,
+   "end_frame": 956,
+   "start_s": 30.9,
+   "duration_s": 1.0,
+   "event_id": 14
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 957,
+   "end_frame": 960,
+   "start_s": 31.9,
+   "duration_s": 0.13,
+   "event_id": 15
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 961,
+   "end_frame": 991,
+   "start_s": 32.03,
+   "duration_s": 1.03,
+   "event_id": 16
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 992,
+   "end_frame": 2371,
+   "start_s": 33.07,
+   "duration_s": 46.0,
+   "event_id": 18
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 2372,
+   "end_frame": 2401,
+   "start_s": 79.07,
+   "duration_s": 1.0,
+   "event_id": 22
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 2402,
+   "end_frame": 2514,
+   "start_s": 80.07,
+   "duration_s": 3.77,
+   "event_id": 23
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 2515,
+   "end_frame": 2560,
+   "start_s": 83.83,
+   "duration_s": 1.53,
+   "event_id": 25
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 2561,
+   "end_frame": 2692,
+   "start_s": 85.37,
+   "duration_s": 4.4,
+   "event_id": 27
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 2693,
+   "end_frame": 2737,
+   "start_s": 89.77,
+   "duration_s": 1.5,
+   "event_id": 30
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 2738,
+   "end_frame": 2967,
+   "start_s": 91.27,
+   "duration_s": 7.67,
+   "event_id": 31
+  },
+  {
+   "decision": "BRAKE",
+   "start_frame": 2968,
+   "end_frame": 2997,
+   "start_s": 98.93,
+   "duration_s": 1.0,
+   "event_id": 32
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 2998,
+   "end_frame": 3033,
+   "start_s": 99.93,
+   "duration_s": 1.2,
+   "event_id": 33
+  },
+  {
+   "decision": "GO STRAIGHT",
+   "start_frame": 3034,
+   "end_frame": 3046,
+   "start_s": 101.13,
+   "duration_s": 0.43,
+   "event_id": 34
+  },
+  {
+   "decision": "SLOW DOWN",
+   "start_frame": 3047,
+   "end_frame": 3802,
+   "start_s": 101.57,
+   "duration_s": 25.2,
+   "event_id": 35
+  }
+ ],
+ "rendered_video": "outputs/india_bangalore_pathsense.mp4"
+}

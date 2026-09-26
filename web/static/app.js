@@ -75,29 +75,46 @@ $$("[data-scroll]").forEach((a) => (a.onclick = (e) => {
 const state = { demos: [], demo: null, events: null, frames: null, fps: 25, evFilter: "all", evSel: null };
 const video = $("#video");
 
-async function loadDemos(select) {
-  state.demos = await api("/api/demos");
-  const lib = $("#library");
-  if (!state.demos.length) {
-    lib.innerHTML = `<div class="callout">No processed videos in <span class="mono">outputs/</span> yet. Upload one to get started.</div>`;
-    return;
-  }
-  lib.innerHTML = state.demos.map((d) => {
-    const pct = d.decision_pct || {};
-    const bar = Object.entries(pct).filter(([, v]) => v > 0)
-      .map(([k, v]) => `<span style="width:${v}%;background:${colorOf(k)}" title="${esc(k)} ${v}%"></span>`).join("");
-    return `<button class="demo-card" data-name="${esc(d.name)}">
+function demoCard(d) {
+  const pct = d.decision_pct || {};
+  const bar = Object.entries(pct).filter(([, v]) => v > 0)
+    .map(([k, v]) => `<span style="width:${v}%;background:${colorOf(k)}" title="${esc(k)} ${v}%"></span>`).join("");
+  const meta = `${d.duration_s ? `<span>${mmss(d.duration_s)}</span>` : ""}
+      ${d.brake_pct !== null && d.brake_pct !== undefined ? `<span>BRAKE ${d.brake_pct}%</span>` : ""}
+      ${d.accidents ? `<span style="color:var(--brake)">accident ×${d.accidents}</span>` : ""}`;
+  return `<div class="demo-card${d.builtin ? " scenario" : ""}" data-name="${esc(d.name)}" role="group" aria-label="${esc(d.title)}">
+    ${d.poster_url ? `<button class="thumb" data-play tabindex="-1" aria-hidden="true"><img src="${esc(d.poster_url)}" alt="" loading="lazy" decoding="async"><span class="thumb-play"><svg><use href="#i-play"/></svg></span></button>` : ""}
+    <div class="body">
       <div class="t">${esc(d.title)}${d.uploaded ? ' <span class="chip" style="font-size:11px">upload</span>' : ""}</div>
-      <div class="m">${d.duration_s ? `<span>${d.duration_s}s</span>` : ""}${d.frames ? `<span>${d.frames} frames</span>` : ""}
-        ${d.brake_pct !== null && d.brake_pct !== undefined ? `<span>BRAKE ${d.brake_pct}%</span>` : ""}
-        ${d.accidents ? `<span style="color:var(--brake)">accident ×${d.accidents}</span>` : ""}</div>
+      ${d.place ? `<div class="place">${esc(d.place)}</div>` : ""}
+      ${d.desc ? `<p class="desc">${esc(d.desc)}</p>` : ""}
+      <div class="m">${meta}</div>
       <div class="bar">${bar}</div>
       ${d.browser_playable ? "" : '<div class="warn">Older encoding (mp4v) — may not play in the browser; re-render to fix.</div>'}
-    </button>`;
-  }).join("");
-  $$(".demo-card", lib).forEach((b) => (b.onclick = () => selectDemo(b.dataset.name, true)));
+      <button class="btn btn-sm demo-play" data-play><svg><use href="#i-play"/></svg><span>Play</span></button>
+    </div>
+  </div>`;
+}
+
+async function loadDemos(select) {
+  state.demos = await api("/api/demos");
+  const builtin = state.demos.filter((d) => d.builtin), local = state.demos.filter((d) => !d.builtin);
+  $("#library").innerHTML = builtin.length ? builtin.map(demoCard).join("")
+    : `<div class="callout">The built-in demos are missing from <span class="mono">demos/</span> (run <span class="mono">python build_demos.py</span>).</div>`;
+  $("#libraryLocal").innerHTML = local.map(demoCard).join("");
+  $("#localWrap").hidden = !local.length;
+  $$(".demo-card").forEach((c) => $$("[data-play]", c).forEach((b) => (b.onclick = () => {
+    if (state.demo && state.demo.name === c.dataset.name) replayFromStart(); else selectDemo(c.dataset.name, true);
+  })));
+  if (!state.demos.length) return;
   const want = select || (state.demo && state.demo.name) || (state.demos.find((d) => d.browser_playable) || state.demos[0]).name;
   selectDemo(want, false);
+}
+
+function replayFromStart() {
+  video.currentTime = 0;
+  video.play().catch(() => {});
+  $("#player").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 async function selectDemo(name, play) {
@@ -105,10 +122,15 @@ async function selectDemo(name, play) {
   if (!d) return;
   state.demo = d; state.events = null; state.frames = null; state.evSel = null;
   $("#momentCard").innerHTML = '<p class="muted" style="margin:0">Select a moment to replay it.</p>';
-  $$(".demo-card").forEach((b) => b.setAttribute("aria-current", String(b.dataset.name === name)));
-  $("#playerEmpty").hidden = true;
+  $$(".demo-card").forEach((b) => {
+    const cur = b.dataset.name === name;
+    b.setAttribute("aria-current", String(cur));
+    const lbl = $(".demo-play span", b); if (lbl) lbl.textContent = "Play";
+  });
+  $("#playerEmpty").hidden = true; $("#replayBtn").hidden = true;
+  if (d.poster_url) video.poster = d.poster_url; else video.removeAttribute("poster");
   video.src = d.video_url;
-  if (play) video.play().catch(() => {});
+  if (play) { video.play().catch(() => {}); $("#player").scrollIntoView({ behavior: "smooth", block: "center" }); }
   const enc = encodeURIComponent(name).replace(/%2F/g, "/");
   const [ev, fr] = await Promise.all([
     d.has_events ? api(`/api/demos/${enc}/events`).catch(() => null) : null,
@@ -190,6 +212,13 @@ function updatePanel() {
 }
 video.addEventListener("timeupdate", updatePanel);
 video.addEventListener("seeked", updatePanel);
+video.addEventListener("ended", () => { $("#replayBtn").hidden = false; });
+video.addEventListener("play", () => {
+  $("#replayBtn").hidden = true;
+  const card = state.demo && $$(".demo-card").find((c) => c.dataset.name === state.demo.name);
+  const lbl = card && $(".demo-play span", card); if (lbl) lbl.textContent = "Replay";   // once played, the card replays
+});
+$("#replayBtn").onclick = replayFromStart;
 video.addEventListener("error", () => {
   $("#dTitle").textContent = "This video cannot be decoded by the browser (older mp4v encoding). Re-render it with the current pipeline.";
 });
@@ -288,17 +317,18 @@ function replayAt(t) {
   $("#player").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-/* ------------------------------------------------------------------ upload */
+/* ------------------------------------------------------------------ upload
+   The Upload button calls fileInput.click() synchronously and does nothing else, so the native picker opens at once.
+   The input's accept list is file extensions only: on Windows, Chromium expands MIME wildcards such as "video/*"
+   into every matching extension registered on the PC before it can show the dialog, which delayed it by seconds.
+   Validation, the server capability check and the upload itself run only after a file has been chosen. */
 const upModal = $("#uploadModal");
-let currentJob = null, uploadXhr = null;
-$$('[data-action="upload"]').forEach((b) => (b.onclick = () => openUpload()));
+const fileInput = $("#fileInput");
+let currentJob = null, uploadXhr = null, caps = null;
+$$('[data-action="upload"]').forEach((b) => (b.onclick = () => fileInput.click()));
 $$("[data-close]").forEach((b) => (b.onclick = () => b.closest(".modal").classList.remove("open")));
-function openUpload() {
-  if (!currentJob) { $("#upProgress").hidden = true; $("#drop").hidden = false; }
-  upModal.classList.add("open");
-}
+fileInput.onchange = () => { const f = fileInput.files[0]; fileInput.value = ""; if (f) startUpload(f); };
 const drop = $("#drop");
-$("#fileInput").onchange = (e) => e.target.files[0] && startUpload(e.target.files[0]);
 ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
 drop.addEventListener("drop", (e) => e.dataTransfer.files[0] && startUpload(e.dataTransfer.files[0]));
@@ -315,9 +345,35 @@ function setProgress(pct, stage, detail) {
   if (stage) $("#upStage").textContent = stage;
   if (detail !== undefined) $("#upDetail").textContent = detail;
 }
+/** show a failure with the real HTTP status and the server's message, and offer another file */
+function uploadFailed(title, status, message) {
+  uploadXhr = null; currentJob = null;
+  $("#upProgress").hidden = true; $("#drop").hidden = false;
+  const e = $("#upError");
+  e.hidden = false;
+  e.innerHTML = `<strong>${esc(title)}${status ? ` (HTTP ${status})` : ""}</strong><div style="margin-top:6px">${esc(message || "no details from the server")}</div>`;
+  upModal.classList.add("open");
+}
+function showModalProgress() {
+  $("#upError").hidden = true; $("#drop").hidden = true; $("#upProgress").hidden = false;
+  upModal.classList.add("open");
+}
+async function getCaps() {
+  if (caps) return caps;
+  try { caps = await api("/api/capabilities"); } catch (e) { caps = null; }
+  return caps;
+}
 
-function startUpload(file) {
-  $("#drop").hidden = true; $("#upProgress").hidden = false;
+async function startUpload(file) {
+  if (currentJob || uploadXhr) { upModal.classList.add("open"); return; }
+  const ext = (file.name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
+  const c = await getCaps();
+  const allowed = (c && c.allowed_ext) || [".avi", ".m4v", ".mkv", ".mov", ".mp4", ".webm"];
+  if (!allowed.includes(ext)) return uploadFailed("Unsupported file", null, `${file.name}: use ${allowed.join(", ")}`);
+  if (c && c.max_upload_mb && file.size > c.max_upload_mb * 1048576)
+    return uploadFailed("File too large", null, `${file.name} is ${(file.size / 1048576).toFixed(0)} MB; the limit is ${c.max_upload_mb} MB.`);
+  if (c && !c.inference) return uploadFailed("Processing unavailable on this server", 503, c.reason);
+  showModalProgress();
   setStage("upload"); setProgress(0, `Uploading ${file.name}`, `${(file.size / 1e6).toFixed(1)} MB`);
   const fd = new FormData(); fd.append("video", file);
   const xhr = (uploadXhr = new XMLHttpRequest());
@@ -325,19 +381,28 @@ function startUpload(file) {
   xhr.upload.onprogress = (e) => e.lengthComputable && setProgress((100 * e.loaded) / e.total, `Uploading ${file.name}`);
   xhr.onload = () => {
     uploadXhr = null;
-    let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) { /* ignore */ }
-    if (xhr.status !== 200) { setProgress(0, "Upload failed", j.error || xhr.statusText); return; }
+    let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) { /* not JSON (e.g. a proxy error page) */ }
+    if (xhr.status !== 200 || !j.job_id) {
+      const text = j.error || (xhr.responseText || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200) || xhr.statusText;
+      return uploadFailed("Upload failed", xhr.status, text);
+    }
     currentJob = j.job_id; pollJob();
   };
-  xhr.onerror = () => { uploadXhr = null; setProgress(0, "Upload failed", "network error"); };
+  xhr.onerror = () => uploadFailed("Upload failed", null, "The connection closed before the server answered (network error, or the server restarted during the upload).");
+  xhr.onabort = () => { uploadXhr = null; };
   xhr.send(fd);
 }
 
 async function pollJob() {
   if (!currentJob) return;
   let j;
-  try { j = await api(`/api/jobs/${currentJob}`); } catch (e) { setProgress(0, "Lost job", e.message); currentJob = null; return; }
-  if (j.status === "error") { setProgress(0, "Processing failed", j.error); currentJob = null; return; }
+  try { j = await api(`/api/jobs/${currentJob}`); }
+  catch (e) {
+    return uploadFailed("Lost the processing job", e.status, e.status === 404
+      ? "The server no longer knows this job: it restarted during processing (for example out of memory), so the video was not processed."
+      : e.message);
+  }
+  if (j.status === "error") return uploadFailed("Processing failed", null, j.error);
   if (j.status === "done") {
     setStage(null, ["upload", "init", "process", "render"]);
     setProgress(100, "Done", `${j.summary.frames_processed} frames · ${j.summary.processing_fps} FPS processing`);
@@ -359,7 +424,11 @@ async function pollJob() {
   setTimeout(pollJob, 700);
 }
 $("#upCancel").onclick = async () => {
-  if (uploadXhr) { uploadXhr.abort(); uploadXhr = null; }
+  if (uploadXhr) {
+    uploadXhr.abort(); uploadXhr = null;
+    $("#upProgress").hidden = true; $("#drop").hidden = false;
+    return;
+  }
   if (currentJob) { await api(`/api/jobs/${currentJob}/cancel`, { method: "POST" }).catch(() => {}); }
   setProgress(0, "Cancelling…", "The partial result is kept only if frames were written.");
 };
@@ -384,9 +453,9 @@ async function liveStart() {
     live.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: live.facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
   } catch (e) { $("#liveStatus").textContent = `Camera error: ${e.name} — ${e.message}`; return; }
   lv.srcObject = live.stream; await lv.play().catch(() => {});
-  $("#liveStatus").textContent = "Loading models on the PC (first start can take ~20 s)…";
+  $("#liveStatus").textContent = "Loading models on the server (the first start takes a while)…";
   try { live.session = (await api("/api/live/start", { method: "POST" })).session; }
-  catch (e) { $("#liveStatus").textContent = `Server error: ${e.message}`; liveStop(); return; }
+  catch (e) { liveStop(); $("#liveStatus").textContent = `Live mode unavailable (HTTP ${e.status || "?"}): ${e.message}`; return; }
   $("#liveEmpty").hidden = true; $("#liveStop").disabled = false;
   ["#livePill", "#liveMeta", "#liveBottom"].forEach((s) => ($(s).hidden = false));
   live.running = true; live.times = [];
@@ -742,10 +811,15 @@ const hero = (() => {
   try { t = localStorage.getItem("ps-theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); } catch (e) { /* default */ }
   applyTheme(t);
   liveSupportNote();
-  api("/api/system").then((s) => {
-    const port = location.port || (location.protocol === "https:" ? 443 : 80);
-    $("#liveUrls").innerHTML = s.lan_ips.map((ip) => `<div class="mono">https://${esc(ip)}:${location.protocol === "https:" ? port : 8443}</div>`).join("");
-  }).catch(() => {});
+  getCaps().then((s) => {
+    if (!s) return;
+    if (!s.inference) { $("#upHint").hidden = false; $("#upHint").textContent = "This server plays the built-in demos; processing a new video needs a machine that can run the pipeline."; }
+    if (s.host !== "local") $("#liveHelp").style.display = "none";   // LAN/HTTPS setup notes apply to a local PC only
+    else {
+      const port = location.port || (location.protocol === "https:" ? 443 : 80);
+      $("#liveUrls").innerHTML = s.lan_ips.map((ip) => `<div class="mono">https://${esc(ip)}:${location.protocol === "https:" ? port : 8443}</div>`).join("");
+    }
+  });
   loadDemos().catch(() => {});
   route();
   // quiet reveal-on-scroll for the landing sections

@@ -1,0 +1,173 @@
+{
+  "input_video": "data/candidates/blr_iisc.webm",
+  "output_video": "outputs/blr_iisc_pathsense.mp4",
+  "input_resolution": [
+    1280,
+    720
+  ],
+  "input_fps": 30.0,
+  "input_reported_frames": 2567,
+  "frames_processed": 2567,
+  "processing_seconds": 296.99,
+  "processing_fps": 8.64,
+  "realtime_factor": 0.288,
+  "device": "cuda:0",
+  "gpu_name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "peak_torch_gpu_mem_mb": 438.3,
+  "stage_ms_per_frame": {
+    "detect_track": 13.5,
+    "auto_classifier": 0.1,
+    "depth": 65.7,
+    "ttc": 0.0,
+    "ego_motion": 16.9,
+    "costmap": 0.3,
+    "planner": 2.5,
+    "decision": 0.2,
+    "accident": 0.7,
+    "render_write": 13.9
+  },
+  "detections_total": 4155,
+  "frames_with_detections": 1963,
+  "unique_track_ids": 126,
+  "depth_inference_frames": 2567,
+  "ttc_estimates": 2796,
+  "hazard_counts": {
+    "SAFE": 2933,
+    "CAUTION": 900,
+    "CRITICAL": 322
+  },
+  "ego_frames_with_flow": 2451,
+  "final_speed_kmh": 3.0,
+  "final_travel_m": 91.29,
+  "bev_frames_with_obstacles": 1963,
+  "planner_distinct_candidates": 17,
+  "planner_blocked_frames": 108,
+  "max_abs_steer_deg": 14.98,
+  "mean_abs_steer_deg": 1.55,
+  "frames_with_critical_pct": 11.1,
+  "planner_blocked_pct": 4.2,
+  "decision_label_pct": {
+    "SLOW DOWN": 54.9,
+    "GO STRAIGHT": 26.7,
+    "BRAKE": 14.7,
+    "NO SAFE PATH - BRAKE": 3.7
+  },
+  "decision_state_pct": {
+    "CAUTION": 54.9,
+    "GO": 26.7,
+    "BRAKE": 18.4
+  },
+  "decision_transitions": 32,
+  "decision_transitions_per_min": 22.4,
+  "brake_episodes": 12,
+  "brake_episode_median_s": 1.13,
+  "brake_episode_list": [
+    {
+      "start_frame": 301,
+      "end_frame": 330,
+      "seconds": 1.0,
+      "reason": "truck #25 in path, closing fast (TTC 0.6s)"
+    },
+    {
+      "start_frame": 445,
+      "end_frame": 498,
+      "seconds": 1.8,
+      "reason": "all candidate paths blocked"
+    },
+    {
+      "start_frame": 527,
+      "end_frame": 615,
+      "seconds": 2.97,
+      "reason": "bicycle #61 in path at 5.7 m"
+    },
+    {
+      "start_frame": 645,
+      "end_frame": 679,
+      "seconds": 1.17,
+      "reason": "car #63 in path, closing (TTC 1.4s, 5 m)"
+    },
+    {
+      "start_frame": 759,
+      "end_frame": 808,
+      "seconds": 1.67,
+      "reason": "motorcycle #83 in path, closing (TTC 1.3s, 5 m)"
+    },
+    {
+      "start_frame": 1444,
+      "end_frame": 1491,
+      "seconds": 1.6,
+      "reason": "motorcycle #146 in path, closing (TTC 1.4s, 6 m)"
+    },
+    {
+      "start_frame": 1792,
+      "end_frame": 1821,
+      "seconds": 1.0,
+      "reason": "person #205 in path at 5.6 m"
+    },
+    {
+      "start_frame": 1877,
+      "end_frame": 1906,
+      "seconds": 1.0,
+      "reason": "motorcycle #217 in path, closing fast (TTC 1.0s)"
+    },
+    {
+      "start_frame": 1942,
+      "end_frame": 1971,
+      "seconds": 1.0,
+      "reason": "motorcycle #252 in path, closing (TTC 1.5s, 6 m)"
+    },
+    {
+      "start_frame": 2233,
+      "end_frame": 2268,
+      "seconds": 1.2,
+      "reason": "all candidate paths blocked"
+    },
+    {
+      "start_frame": 2402,
+      "end_frame": 2434,
+      "seconds": 1.1,
+      "reason": "person #399 in path, closing (TTC 2.0s, 5 m)"
+    },
+    {
+      "start_frame": 2559,
+      "end_frame": 2566,
+      "seconds": 0.27,
+      "reason": "car #406 in path, closing (TTC 1.9s, 6 m)"
+    }
+  ],
+  "depth_geometry": {
+    "mode": "ground",
+    "horizon_px": 396.0,
+    "camera_height_m": 1.3,
+    "source": "default",
+    "calibrated": true,
+    "last_fit_r2": 0.93
+  },
+  "depth_heuristic_fallback_frames": 0,
+  "behavior_counts": {
+    "SIDE PASS": 34
+  },
+  "video_codec": "avc1",
+  "accident": {
+    "enabled": true,
+    "possible_events": 1,
+    "unconfirmed_events": 1,
+    "confirmed": []
+  },
+  "auto_rickshaw": {
+    "enabled": true,
+    "confirmed_tracks": 0,
+    "crops_classified": 13
+  },
+  "decision_events": 39,
+  "output_check": {
+    "opened": true,
+    "frames": 2567,
+    "width": 1280,
+    "height": 720,
+    "fps": 30.0
+  },
+  "frames_json": "outputs/blr_iisc_frames.json",
+  "events_json": "outputs/blr_iisc_events.json",
+  "timeline_png": "outputs/blr_iisc_timeline.png"
+}
