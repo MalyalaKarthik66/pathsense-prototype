@@ -396,10 +396,13 @@ Across the six Indian validation drives the detector produced no false accident 
 
 ## 17. SIH presentation
 
-`PathSense_SIH_Presentation.pptx` (+ `.pdf` for the portal) follows the **official SIH 2026 idea-presentation
-template**: six slides (Title page · Idea / Proposed solution · Technical approach · Feasibility and viability · Impact
-and benefits · Research and references), with the template's pointers kept verbatim, original vector diagrams and no
-prototype screenshots. Build: `python presentation/build_presentation.py <path to SIH2026-IDEA-Presentation-Format.pptx>`
-(default: `~/Downloads`); every measured number is read from `outputs/` at build time. Team name / team ID are left as
-the template's fields. Icons: `presentation/make_icons.js` (react-icons, MIT).
+`PathSense_SIH_Presentation.pptx` (+ `.pdf` for the portal) is the **idea deck** and follows the **official SIH 2026
+idea-presentation template**: six slides (Title page · Idea / Proposed solution · Technical approach · Feasibility and
+viability · Impact and benefits · Research and references), with the template's pointers kept verbatim. It presents the
+proposed solution, a conceptual Prototype → Pilot → Production roadmap and expected impact. It deliberately contains
+**no prototype measurements and no prototype screenshots**, because those belong to the live demo.
+Build: `python presentation/build_presentation.py <path to SIH2026-IDEA-Presentation-Format.pptx>` (default: `~/Downloads`).
+The title and idea visuals are original 3D concept renders: `node presentation/hero/render_hero.mjs` renders
+`presentation/hero/scene.html` (three.js from jsDelivr, headless Edge/Chrome) to `presentation/assets/hero_*.png` plus
+anchor files used to place the slide callouts. The Team ID is left blank for the portal value. Icons: `presentation/make_icons.js` (react-icons, MIT).
 
