@@ -1,17 +1,18 @@
 """
-Builds PathSense_SIH_Presentation.pptx (8 slides) in the visual language of the team's reference deck.
+Builds PathSense_SIH_Presentation.pptx (8 slides).
 
-    python presentation/build_presentation.py  [path\\to\\finalforsih.pptx]
+    python presentation/build_presentation.py  [path\to\finalforsih.pptx]
 
-Structure follows the SIH 2026 idea-presentation format as realised in the reference deck:
+Structure follows the SIH 2026 idea-presentation format:
   1 Title page · 2 Proposed solution · 3 Technical approach · 4 Prototype · 5 Feasibility and viability ·
   6 Proof of concept, impact & benefits · 7 Business model canvas · 8 Research and references.
 
-The reference deck is used for its DESIGN only: header, footer, logo placement, notebook cards, colour boxes,
-typography. Every piece of content is replaced with PathSense content, and every reference-specific picture is
-replaced with original material: 3D concept renders (presentation/hero/render_hero.mjs), editable diagrams, icons
-(presentation/make_icons.js) and technology logos (presentation/make_logos.js).
-No prototype measurements and no prototype screenshots are used anywhere.
+Slide 1 is the approved SIH title page (taken from the team's earlier deck with PathSense details filled in) and is
+kept exactly as it is. Slides 2-8 are built from blank slides in PathSense's own design system.
+Pictures: the four Prototype-slide images are real screenshots of the running web app
+(presentation/capture_screens.mjs); the slide-2 "How It Works" images are original concept renders
+(presentation/hero/render_hero.mjs); icons and technology logos come from make_icons.js / make_logos.js.
+No prototype measurements are quoted on the slides.
 """
 
 import os
@@ -263,422 +264,466 @@ for p in tb.text_frame.paragraphs:
         r.font.size = Pt(20)
 place(tb, y=1.75)
 
+# ================================================================== slides 2-8: PathSense's own design system
+# Slide 1 above is the approved title page and is left exactly as it is. The reference deck's slides 2-8 are removed
+# and rebuilt from blank slides in an independent layout: navy header band, modular cards, section chips,
+# timelines and tables.
+for idx in range(len(prs.slides) - 1, 0, -1):
+    sld = prs.slides._sldIdLst[idx]
+    prs.part.drop_rel(sld.rId)
+    prs.slides._sldIdLst.remove(sld)
+
+DNAVY, LIGHT, TEAL_T, AMBER, AMBER_T, CORAL = "12263F", "F2F4F7", "E3F4F1", "E8A33D", "FDF3E1", "D9534F"
+BLANK = prs.slide_layouts[0]                      # "DEFAULT": no placeholders
+SIH_LOGO = os.path.join(ASSETS, "sih_logo.png")   # extracted from the SIH title-page artwork
+SCREENS = os.path.join(ASSETS, "screens")
+TOTAL = 8
+
+
+def new_slide(n, title, subtitle=None):
+    s = prs.slides.add_slide(BLANK)
+    rect(s, 0, 0, 13.333, 1.05, fill=DNAVY)
+    rect(s, 0.32, 0.3, 1.25, 0.46, fill=TEAL, radius=0.23)
+    text(s, 0.32, 0.3, 1.25, 0.46, TEAM_NAME, size=10, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, 1.8, 0.13, 8.5, 0.2, f"SMART INDIA HACKATHON 2026   ·   {PS_ID}   ·   PATHSENSE", size=7.5, bold=True, color="7FD6CB")
+    text(s, 1.8, 0.31, 9.0, 0.46, title, size=24, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+    if subtitle:
+        text(s, 1.8, 0.75, 9.0, 0.24, subtitle, size=10.5, color="C9D6E8")
+    rect(s, 11.2, 0.13, 1.8, 0.8, fill="FFFFFF", radius=0.08)
+    s.shapes.add_picture(SIH_LOGO, Inches(11.32), Inches(0.165), Inches(1.56), Inches(1.56 * 661 / 1400))
+    text(s, 0.4, 7.1, 6.0, 0.22, "@SIH Idea submission- Template", size=8, color=SUB, anchor=MSO_ANCHOR.MIDDLE)
+    rect(s, 12.38, 7.07, 0.55, 0.28, fill=DNAVY, radius=0.06)
+    text(s, 12.38, 7.07, 0.55, 0.28, f"{n:02d}", size=9, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    return s
+
+
+def chip(s, x, y, label, color=TEAL, w=None):
+    w = w or (0.3 + 0.07 * len(label))
+    rect(s, x, y, w, 0.25, fill=color, radius=0.06)
+    text(s, x, y, w, 0.25, label, size=8, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    return w
+
+
+def card(s, x, y, w, h, fill=LIGHT, line=None):
+    return rect(s, x, y, w, h, fill=fill, line=line, radius=0.07)
+
+
+def screen(name, w, h, fy=0.0):
+    """crop a real screenshot to the frame's aspect ratio, keeping the top of the page (no drawing, no edits)"""
+    im = Image.open(os.path.join(SCREENS, f"{name}.png")).convert("RGB")
+    W, H = im.size
+    ar = w / h
+    cw, ch = W, W / ar
+    if ch > H:
+        ch, cw = H, H * ar
+    y0 = (H - ch) * fy
+    x0 = (W - cw) / 2
+    out = os.path.join(CROPS, f"screen_{name}.jpg")
+    im.crop((int(x0), int(y0), int(x0 + cw), int(y0 + ch))).resize((int(w * 300), int(w * 300 / ar)), Image.LANCZOS).save(out, quality=90, optimize=True)
+    return out
+
+
 # ================================================================== 2. PROPOSED SOLUTION
-s = SL[1]
-page_number(s, 2)
-fill(shp(s, "Text 5"), [[("PATHSENSE", "b")]])
-fill(shp(s, "Text 6"), [[("Adaptive Path Planning & Collision Avoidance for Unstructured Indian Roads", "b")]])
-fill(shp(s, "Text 10"), [
-    [("PathSense", "b"), (" is an adaptive autonomous-driving intelligence system for Indian roads where lane markings may be absent and traffic behaviour is irregular.", "n")],
-    [("Core idea: ", "b"), ("perceive every road user, understand its motion, reason about the vehicle’s real drivable corridor and keep re-planning a collision-free trajectory.", "n")],
-])
-fill(shp(s, "Text 14"), [[(a + ": ", "b"), (b, "n")] for a, b in [
-    ("Unmarked Roads", "Lane markings are faded, partial or absent, so lane-following assumptions break."),
-    ("Mixed Traffic", "Cars, buses, trucks, two-wheelers, auto-rickshaws, cyclists and pedestrians share one space."),
-    ("Informal Merges", "Vehicles cut in from either side without signalling or lane discipline."),
-    ("Sudden Direction Changes", "Two-wheelers and autos weave, U-turn or stop abruptly."),
-    ("Wrong-Way Movement", "Riders and vehicles travel against the flow on the vehicle’s own side."),
-    ("Pedestrian / Cyclist Interaction", "People walk along and across the carriageway without crossings."),
-    ("Animal Crossings", "Cattle and dogs stand on, or wander into, the road."),
-    ("Temporary Obstacles", "Work zones, parked vehicles, handcarts and debris block the usual path."),
-]])
+s = new_slide(2, "PATHSENSE", "Adaptive Path Planning & Collision Avoidance for Unstructured Indian Roads")
+L = 0.4
+chip(s, L, 1.22, "PROPOSED SOLUTION", DNAVY)
+text(s, L, 1.54, 8.45, 0.62, [
+    [("PathSense", {"bold": True}), (" is an adaptive autonomous-driving intelligence system for Indian roads where lane markings may be absent and traffic behaviour is irregular.", {})],
+    [("Core idea: ", {"bold": True}), ("perceive every road user, understand its motion, reason about the vehicle’s real drivable corridor and keep re-planning a collision-free trajectory.", {})]],
+    size=9, color=INK, space=2)
+flow = [("Perception", "Detects road users & obstacles"), ("Tracking", "Keeps identities & motion over time"),
+        ("Motion Understanding", "Short-term movement & interaction risk"), ("Ego-Path Understanding", "The vehicle’s real drivable corridor"),
+        ("Adaptive Planning", "Generates & scores collision-free paths"), ("Decision", "GO / SLOW / STEER / BRAKE / NO SAFE PATH")]
+shades = ["1F3A5F", "1B4F6E", "17657C", "137A87", "0F8E8B", "0F9E8E"]
+cw = 1.46
+for i, ((t1, t2), col) in enumerate(zip(flow, shades)):
+    x = L + i * (cw - 0.06)
+    sh = s.shapes.add_shape(MSO_SHAPE.CHEVRON if i else MSO_SHAPE.PENTAGON, Inches(x), Inches(2.24), Inches(cw), Inches(0.4))
+    sh.fill.solid(); sh.fill.fore_color.rgb = rgb(col); sh.line.fill.background(); sh.shadow.inherit = False
+    text(s, x + (0.2 if i else 0.08), 2.24, cw - 0.36, 0.4, t1, size=7.3, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.08, 2.67, cw - 0.16, 0.3, t2, size=6.5, color=SUB, align=PP_ALIGN.CENTER)
+chip(s, L, 3.07, "PROBLEMS IT ADDRESSES", CORAL)
+probs = [("route", "Unmarked Roads", "Lane markings are faded, partial or absent, so lane-following assumptions break."),
+         ("car", "Mixed Traffic", "Cars, buses, trucks, two-wheelers, auto-rickshaws, cyclists and pedestrians share one space."),
+         ("merge", "Informal Merges", "Vehicles cut in from either side without signalling or lane discipline."),
+         ("moto", "Sudden Direction Changes", "Two-wheelers and autos weave, U-turn or stop abruptly."),
+         ("block", "Wrong-Way Movement", "Riders and vehicles travel against the flow on the vehicle’s own side."),
+         ("walk", "Pedestrian / Cyclist Interaction", "People walk along and across the carriageway without crossings."),
+         ("cow", "Animal Crossings", "Cattle and dogs stand on, or wander into, the road."),
+         ("warning", "Temporary Obstacles", "Work zones, parked vehicles, handcarts and debris block the usual path.")]
+for i, (ic, t1, t2) in enumerate(probs):
+    x, y = L + (i % 4) * 2.13, 3.38 + (i // 4) * 0.84
+    card(s, x, y, 2.05, 0.77)
+    icon(s, ic, x + 0.08, y + 0.08, 0.26, "w", circle=CORAL, pad=0.2)
+    text(s, x + 0.4, y + 0.08, 1.6, 0.26, t1, size=8, bold=True, color=DNAVY, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.1, y + 0.38, 1.9, 0.38, t2, size=6.8, color=SUB)
+chip(s, L, 5.09, "DIFFERENTIATION & KEY VALUE PROPOSITION", TEAL)
 cards = [("Lane-Independent Path Planning", "Plans around the actual drivable corridor instead of depending only on painted lane markings."),
          ("Indian Mixed-Traffic Awareness", "Designed for cars, buses, trucks, motorcycles, auto-rickshaws, pedestrians, bicycles and animals."),
          ("Behaviour-Aware Collision Avoidance", "Considers object movement and potential path conflict rather than distance alone."),
          ("Adaptive Replanning", "Continuously evaluates candidate trajectories as the road scene changes."),
          ("Unstructured-Road Operation", "Targets roads where conventional lane-based assumptions are unreliable."),
          ("Safety-First Decision Layer", "Escalates from normal travel to caution, steering, braking and no-safe-path according to path threat.")]
-sets = [(16, 17, 18), (19, 20, 21), (22, 23, 24), (25, 26, 27), (28, 29, 30), (31, 32, 33), (34, 35, 36), (79, 80, 81)]
-y0, rh, gap = 2.10, 0.555, 0.052
-for i, (a, b, c) in enumerate(sets):
-    box_, num, body = shp(s, f"Shape {a}"), shp(s, f"Text {b}"), shp(s, f"Text {c}")
-    if i >= len(cards):
-        for x in (box_, num, body):
-            remove(x)
-        continue
-    y = y0 + i * (rh + gap)
-    for x in (box_, num, body):
-        place(x, y=y, h=rh)
-    fill(num, [[(f"{i + 1:02d}", "b")]])
-    fill(body, [(0, [(cards[i][0], "b")]), (1, [(cards[i][1], "n")])])
-# "How It Works" panel (replaces the reference infographic): three original concept renders
-remove(shp(s, "Image 4"))
-HX, HW = 9.99, 2.72
-text(s, HX, 1.64, HW, 0.24, "How It Works", size=12, bold=True, color=INK, align=PP_ALIGN.CENTER)
-text(s, HX, 1.87, HW, 0.15, "From the camera view to a safe, explainable path", size=6.5, color=SUB, align=PP_ALIGN.CENTER)
-steps = [("1", "Perceive & Track", "Every road user, every frame", BLUE, "hw_perceive", "perception", 0.5, 0.52, 1.7),
-         ("2", "Predict & Plan", "Candidate paths, conflicts rejected", TEAL, "hw_plan", "planning", 0.5, 0.55, 1.25),
-         ("3", "Decide", "GO · SLOW · STEER · BRAKE", ORANGE, "hw_decide", "corridor", 0.48, 0.55, 1.35)]
-yy = 2.08
-for n, t1, t2, col, nm, src, fx, fy, z in steps:
-    rect(s, HX, yy, HW, 0.21, fill=col, radius=0.04)
-    rect(s, HX + 0.04, yy + 0.025, 0.16, 0.16, fill="FFFFFF", shape=MSO_SHAPE.OVAL)
-    text(s, HX + 0.04, yy + 0.025, 0.16, 0.16, n, size=7, bold=True, color=col, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-    text(s, HX + 0.25, yy, 1.3, 0.21, t1, size=7.5, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
-    text(s, HX + 1.35, yy, HW - 1.4, 0.21, t2, size=6, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.RIGHT)
-    picture(s, nm, src, HX, yy + 0.23, HW, 0.86, fx, fy, z)
-    yy += 1.15
-rect(s, HX, yy + 0.02, HW, 0.24, fill=NAVY, radius=0.05)
-text(s, HX, yy + 0.02, HW, 0.24, "SEE · PREDICT · PLAN — SAFE PATHS ON EVERY ROAD", size=6.5, bold=True, color="FFFFFF",
-     align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-flow = [("Perception", "Detects road users & obstacles"), ("Tracking", "Keeps identities & motion over time"),
-        ("Motion Understanding", "Short-term movement & interaction risk"), ("Ego-Path Understanding", "The vehicle’s real drivable corridor"),
-        ("Adaptive Planning", "Generates & scores collision-free paths"), ("Decision", "GO / SLOW / STEER / BRAKE / NO SAFE PATH")]
-for (t1, t2), n in zip(flow, (62, 65, 68, 71, 74, 77)):
-    fill(shp(s, f"TextBox {n}"), [(0, [(t1, "b")]), (1, [(t2, "n")])])
+for i, (t1, t2) in enumerate(cards):
+    x, y = L + (i % 3) * 2.84, 5.4 + (i // 3) * 0.8
+    card(s, x, y, 2.76, 0.73, fill="FFFFFF", line="D5DDE8")
+    text(s, x + 0.08, y + 0.08, 0.45, 0.4, f"{i + 1:02d}", size=16, bold=True, color=TEAL)
+    text(s, x + 0.55, y + 0.07, 2.15, 0.22, t1, size=8, bold=True, color=DNAVY)
+    text(s, x + 0.55, y + 0.3, 2.15, 0.42, t2, size=6.8, color=SUB)
+# How It Works (the approved images are kept exactly as they were)
+HX, HY, HW = 9.1, 1.22, 3.83
+card(s, HX, HY, HW, 5.73, fill=DNAVY)
+text(s, HX + 0.15, HY + 0.12, HW - 0.3, 0.3, "How It Works", size=14, bold=True, color="FFFFFF")
+text(s, HX + 0.15, HY + 0.42, HW - 0.3, 0.2, "From the camera view to a safe, explainable path", size=8, color="C9D6E8")
+steps = [("1", "Perceive & Track", "Every road user, every frame", "hw_perceive"),
+         ("2", "Predict & Plan", "Candidate paths, conflicts rejected", "hw_plan"),
+         ("3", "Decide", "GO · SLOW · STEER · BRAKE", "hw_decide")]
+iw = HW - 0.3
+ih = iw * 0.86 / 2.72
+yy = HY + 0.75
+for n, t1, t2, nm in steps:
+    rect(s, HX + 0.15, yy + 0.02, 0.22, 0.22, fill=TEAL, shape=MSO_SHAPE.OVAL)
+    text(s, HX + 0.15, yy + 0.02, 0.22, 0.22, n, size=8, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, HX + 0.45, yy, 1.5, 0.26, t1, size=9, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+    text(s, HX + 1.8, yy, iw - 1.65, 0.26, t2, size=7, color="9FE3D9", anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.RIGHT)
+    s.shapes.add_picture(os.path.join(CROPS, f"{nm}.jpg"), Inches(HX + 0.15), Inches(yy + 0.3), Inches(iw), Inches(ih))
+    yy += 0.3 + ih + 0.14
+rect(s, HX + 0.15, 6.52, iw, 0.3, fill=TEAL, radius=0.06)
+text(s, HX + 0.15, 6.52, iw, 0.3, "SEE · PREDICT · PLAN — SAFE PATHS ON EVERY ROAD", size=7.5, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
 
 # ================================================================== 3. TECHNICAL APPROACH
-s = SL[2]
-page_number(s, 3)
-fill(shp(s, "Text 6"), [[("PathSense  |  Adaptive Perception-to-Planning Pipeline", "b")]])
-remove(shp(s, "Picture 16"))
-# -- inputs column
-IX, IWc = 0.52, 1.95
-rect(s, IX, 1.8, IWc, 0.26, fill=LBLUE)
-text(s, IX + 0.08, 1.8, IWc, 0.26, "Inputs / Road Scene", size=9.5, bold=True, color=NAVY, anchor=MSO_ANCHOR.MIDDLE)
-ins = [("Front camera video", "Monocular dashcam or phone", "road", 0.5, 0.45, 1.6),
-       ("Mixed traffic", "Cars, 2W, autos, people, animals", "market", 0.55, 0.45, 1.5),
-       ("Road context", "Unmarked roads, shoulders, junctions", "village", 0.5, 0.45, 1.3),
-       ("Ego motion", "From video; CAN / IMU in pilot", None, 0, 0, 0)]
-for i, (t1, t2, src, fx, fy, z) in enumerate(ins):
-    y = 2.1 + i * 0.66
-    rect(s, IX, y, IWc, 0.62, fill="FFFFFF", line=LINE)
-    if src:
-        picture(s, f"in_{i}", src, IX + 0.04, y + 0.04, 0.72, 0.54, fx, fy, z, border=None)
-    else:
-        icon(s, "speed", IX + 0.16, y + 0.07, 0.48, "w", circle=BLUE, pad=0.2)
-    text(s, IX + 0.82, y + 0.09, 1.1, 0.2, t1, size=8, bold=True, color=NAVY)
-    text(s, IX + 0.82, y + 0.29, 1.1, 0.3, t2, size=6.5, color=SUB)
-    arrow(s, IX + IWc, y + 0.31, 2.7, y + 0.31, color=GREY, width=0.9)
-# -- outputs column
-OX = 7.36
-rect(s, OX, 1.8, IWc, 0.26, fill=LGREEN)
-text(s, OX + 0.08, 1.8, IWc, 0.26, "Outputs / Decisions", size=9.5, bold=True, color=NAVY, anchor=MSO_ANCHOR.MIDDLE)
-outs = [("Safe trajectory", "Selected collision-free path", "planning", 0.5, 0.55, 1.4),
-        ("Driving decision", "GO · SLOW · STEER · BRAKE · NO SAFE PATH", None, "shield", 0, 0),
-        ("Threat alerts", "Which road user, why, how soon", "perception", 0.52, 0.5, 1.8),
-        ("Decision log", "Explainable, replayable reasons", None, "timeline", 0, 0)]
-for i, (t1, t2, src, fx, fy, z) in enumerate(outs):
-    y = 2.1 + i * 0.66
-    rect(s, OX, y, IWc, 0.62, fill="FFFFFF", line=LINE)
-    if src:
-        picture(s, f"out_{i}", src, OX + 0.04, y + 0.04, 0.72, 0.54, fx, fy, z, border=None)
-    else:
-        icon(s, fx, OX + 0.16, y + 0.07, 0.48, "w", circle=GREEN if i == 1 else PURPLE, pad=0.2)
-    text(s, OX + 0.82, y + 0.09, 1.1, 0.2, t1, size=8, bold=True, color=NAVY)
-    text(s, OX + 0.82, y + 0.29, 1.1, 0.3, t2, size=6.5, color=SUB)
-    arrow(s, 7.14, 4.39, OX, y + 0.31, color=GREY, width=0.9)
-# -- runtime block (top centre)
-rect(s, 2.66, 1.8, 4.54, 0.5, fill="F7FAFE", line="8FB5DE", dash="dash")
-text(s, 2.66, 1.82, 4.54, 0.18, "Runtime (GPU-accelerated inference, open pretrained models)", size=7.5, bold=True, color=NAVY, align=PP_ALIGN.CENTER)
-for j, (lg, lab) in enumerate([("python", "Python"), ("pytorch", "PyTorch"), ("nvidia", "CUDA"), ("opencv", "OpenCV")]):
-    x = 2.95 + j * 1.08
-    logo(s, lg, x, 2.03, 0.2)
-    text(s, x + 0.24, 2.03, 0.8, 0.2, lab, size=7.5, bold=True, color=NAVY, anchor=MSO_ANCHOR.MIDDLE)
-# -- 9-stage pipeline (snake)
-nodes = [("camera", "Camera input", "front view, every frame", BLUE), ("visibility", "Object detection", "vehicles, people, animals", BLUE),
-         ("timeline", "Multi-object tracking", "IDs & history", BLUE), ("layers", "Depth & scene", "distance, free space", PURPLE),
-         ("brain", "Motion / threat", "who is moving where", PURPLE), ("route", "Ego-path & corridor", "real drivable corridor", PURPLE),
-         ("loop", "Candidate trajectories", "kinematic path set", TEAL), ("warning", "Risk-aware selection", "reject conflicts", TEAL),
-         ("shield", "Steering / decision", "path + GO…BRAKE", GREEN)]
-cols, rows_y, nw, nh = [2.72, 4.22, 5.72], [2.44, 3.26, 4.08], 1.42, 0.62
-order = [(0, 0), (0, 1), (0, 2), (1, 2), (1, 1), (1, 0), (2, 0), (2, 1), (2, 2)]
-pos = []
-for (ic, t1, t2, col), (r, c) in zip(nodes, order):
-    x, y = cols[c], rows_y[r]
-    pos.append((x, y))
-    rect(s, x, y, nw, nh, fill="FFFFFF", line=col, lw=1.1, radius=0.06)
-    icon(s, ic, x + 0.07, y + 0.1, 0.34, "w", circle=col, pad=0.2)
-    text(s, x + 0.46, y + 0.07, nw - 0.5, 0.3, t1, size=7.5, bold=True, color=NAVY)
-    text(s, x + 0.46, y + 0.37, nw - 0.5, 0.22, t2, size=6.3, color=SUB)
-for i in range(len(pos) - 1):
-    (x1, y1), (x2, y2) = pos[i], pos[i + 1]
-    if y1 == y2:
-        if x2 > x1:
-            arrow(s, x1 + nw, y1 + nh / 2, x2, y2 + nh / 2, color=BLUE, width=1.25)
-        else:
-            arrow(s, x1, y1 + nh / 2, x2 + nw, y2 + nh / 2, color=BLUE, width=1.25)
-    else:
-        arrow(s, x1 + nw / 2, y1 + nh, x2 + nw / 2, y2, color=BLUE, width=1.25)
-# -- safety layer bar
-rect(s, 3.05, 4.84, 3.8, 0.36, fill="FFFFFF", line=NAVY, lw=1.0)
-icon(s, "shield", 3.12, 4.88, 0.28, "n")
-text(s, 3.45, 4.84, 3.35, 0.2, "Safety-First Decision Layer", size=8.5, bold=True, color=NAVY)
-text(s, 3.45, 5.02, 3.35, 0.16, "path-threat reasoning  |  persistence & hysteresis  |  reasons", size=6.3, color=SUB)
-arrow(s, 4.95, 4.72, 4.95, 4.84, color=NAVY, width=1.0)
-# -- operating environments (bottom row)
-envs = [("Urban dense traffic", "Crowds, vendors, turning buses", "market", 0.5, 0.45, 1.25, ORANGE, "bus"),
-        ("Village roads", "Narrow, unmarked, cattle, tractors", "village", 0.62, 0.72, 1.6, GREEN, "cow"),
-        ("Highways & transitions", "Merges, trucks, higher speeds", "village", 0.35, 0.22, 1.7, BLUE, "truck"),
-        ("Unmarked city roads", "Work zones, wrong-way riders", "road", 0.5, 0.5, 1.4, PURPLE, "route")]
-line_y = 5.3
-rect(s, 1.6, line_y - 0.005, 6.65, 0.01, fill=GREY)
-arrow(s, 4.95, 5.2, 4.95, line_y, color=GREY, width=0.9, head=False)
-for i, (t1, t2, src, fx, fy, z, col, ic) in enumerate(envs):
-    x = 0.55 + i * 2.2
-    arrow(s, x + 1.06, line_y, x + 1.06, 5.4, color=GREY, width=0.9)
-    rect(s, x, 5.4, 2.12, 1.26, fill="F8FAFD", line=LINE)
-    icon(s, ic, x + 0.07, 5.45, 0.2, "n")
-    text(s, x + 0.32, 5.44, 1.8, 0.22, t1, size=8, bold=True, color=NAVY, anchor=MSO_ANCHOR.MIDDLE)
-    picture(s, f"env_{i}", src, x + 0.06, 5.68, 2.0, 0.72, fx, fy, z, border=None)
-    text(s, x + 0.08, 6.43, 1.98, 0.2, "• " + t2, size=6.5, color=SUB)
-# -- TECH STACK (replaces the reference image)
-remove(shp(s, "Image 2"))
-text(s, 9.78, 1.25, 3.0, 0.3, "TECH STACK", size=13, bold=True, color=INK)
-rect(s, 9.78, 1.55, 3.08, 0.012, fill="9AA4B2")
-cells = [("PERCEPTION", BLUE, [("ultralytics", "YOLO"), ("opencv", "OpenCV")], "Object detection"),
-         ("TRACKING", GREEN, [("icon:timeline", "ByteTrack")], "Multi-object tracking"),
-         ("DEPTH / VISION", PURPLE, [("icon:layers", "Depth Anything"), ("icon:visibility", "CLIP")], "Depth & scene cues"),
-         ("PLANNING", ORANGE, [("python", "Python"), ("numpy", "NumPy")], "Trajectory & risk logic"),
-         ("WEB / DEMO", RED, [("flask", "Flask"), ("html", "HTML"), ("css", "CSS"), ("javascript", "JS")], "Review dashboard"),
-         ("RUNTIME", "2C5F7C", [("pytorch", "PyTorch"), ("nvidia", "CUDA")], "GPU inference")]
-cw_, ch_ = 1.0, 0.97
-for i, (title, col, items, cap) in enumerate(cells):
-    x, y = 9.76 + (i % 3) * (cw_ + 0.04), 1.63 + (i // 3) * (ch_ + 0.05)
-    rect(s, x, y, cw_, ch_, fill="FFFFFF", line=LINE)
-    rect(s, x, y, cw_, 0.19, fill=col)
-    text(s, x, y, cw_, 0.19, title, size=6.3, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-    n = len(items)
-    for j, (lg, lab) in enumerate(items):
-        if n <= 2:
-            lx, ly, ls = x + 0.08, y + 0.26 + j * 0.28, 0.22
-        else:
-            lx, ly, ls = x + 0.05 + (j % 2) * 0.48, y + 0.26 + (j // 2) * 0.28, 0.18
+s = new_slide(3, "TECHNICAL APPROACH", "PathSense  |  Adaptive Perception-to-Planning Pipeline")
+chip(s, L, 1.22, "INPUTS / ROAD SCENE", DNAVY)
+ins = [("camera", "Front camera video", "Monocular dashcam or phone"), ("car", "Mixed traffic", "Cars, 2W, autos, people, animals"),
+       ("map", "Road context", "Unmarked roads, shoulders, junctions"), ("speed", "Ego motion", "From video; CAN / IMU in pilot")]
+for i, (ic, t1, t2) in enumerate(ins):
+    x = L + i * 2.16
+    card(s, x, 1.53, 2.08, 0.52)
+    icon(s, ic, x + 0.08, 1.6, 0.36, "w", circle=DNAVY, pad=0.2)
+    text(s, x + 0.52, 1.57, 1.5, 0.22, t1, size=8, bold=True, color=DNAVY)
+    text(s, x + 0.52, 1.79, 1.52, 0.22, t2, size=6.8, color=SUB)
+phases = [("1 · PERCEIVE", DNAVY, [("camera", "Camera input", "front view, every frame"), ("visibility", "Object detection", "vehicles, people, animals"),
+                                  ("timeline", "Multi-object tracking", "IDs & history")]),
+          ("2 · UNDERSTAND", TEAL, [("layers", "Depth & scene", "distance, free space"), ("brain", "Motion / threat", "who is moving where"),
+                                   ("route", "Ego-path & corridor", "real drivable corridor")]),
+          ("3 · PLAN & ACT", AMBER, [("loop", "Candidate trajectories", "kinematic path set"), ("warning", "Risk-aware selection", "reject conflicts"),
+                                    ("shield", "Steering / decision", "path + GO … BRAKE")])]
+arrow(s, L + 4.3, 2.08, L + 4.3, 2.2, color=GREY, width=1.2)
+pw = 2.72
+for k, (title, col, stages) in enumerate(phases):
+    x = L + k * (pw + 0.18)
+    rect(s, x, 2.22, pw, 0.3, fill=col, radius=0.05)
+    text(s, x, 2.22, pw, 0.3, title, size=9, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    for j, (ic, t1, t2) in enumerate(stages):
+        y = 2.6 + j * 0.8
+        card(s, x, y, pw, 0.72, fill="FFFFFF", line="D5DDE8")
+        text(s, x + 0.08, y + 0.1, 0.3, 0.5, f"{k * 3 + j + 1}", size=15, bold=True, color=col)
+        icon(s, ic, x + 0.4, y + 0.16, 0.4, "w", circle=col, pad=0.2)
+        text(s, x + 0.9, y + 0.12, pw - 0.95, 0.24, t1, size=9, bold=True, color=DNAVY)
+        text(s, x + 0.9, y + 0.38, pw - 0.95, 0.24, t2, size=7.5, color=SUB)
+        if j < 2:
+            arrow(s, x + pw / 2, y + 0.72, x + pw / 2, y + 0.8, color=col, width=1.0)
+    if k < 2:
+        sh = s.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, Inches(x + pw + 0.02), Inches(3.55), Inches(0.14), Inches(0.26))
+        sh.fill.solid(); sh.fill.fore_color.rgb = rgb(GREY); sh.line.fill.background()
+rect(s, L, 5.03, 8.52, 0.34, fill=DNAVY, radius=0.05)
+icon(s, "shield", L + 0.1, 5.07, 0.26, "w")
+text(s, L + 0.45, 5.03, 8.0, 0.34, [[("Safety-First Decision Layer   ", {"bold": True}), ("path-threat reasoning  |  persistence & hysteresis  |  reasons", {"color": "C9D6E8"})]],
+     size=9, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+chip(s, L, 5.47, "OUTPUTS / DECISIONS", GREEN)
+outs = [("route", "Safe trajectory", "Selected collision-free path"), ("shield", "Driving decision", "GO · SLOW · STEER · BRAKE · NO SAFE PATH"),
+        ("warning", "Threat alerts", "Which road user, why, how soon"), ("timeline", "Decision log", "Explainable, replayable reasons")]
+for i, (ic, t1, t2) in enumerate(outs):
+    x = L + i * 2.16
+    card(s, x, 5.78, 2.08, 0.55, fill="E8F4EC")
+    icon(s, ic, x + 0.08, 5.86, 0.36, "w", circle=GREEN, pad=0.2)
+    text(s, x + 0.52, 5.81, 1.5, 0.22, t1, size=8, bold=True, color=DNAVY)
+    text(s, x + 0.52, 6.03, 1.52, 0.28, t2, size=6.5, color=SUB)
+text(s, L, 6.45, 1.15, 0.45, "Designed for:", size=8, bold=True, color=DNAVY, anchor=MSO_ANCHOR.MIDDLE)
+envs = [("Urban dense traffic", "crowds, vendors, turning buses"), ("Village roads", "narrow, unmarked, cattle, tractors"),
+        ("Highways & transitions", "merges, trucks, higher speeds"), ("Unmarked city roads", "work zones, wrong-way riders")]
+for i, (t1, t2) in enumerate(envs):
+    x = L + 1.12 + i * 1.86
+    rect(s, x, 6.47, 1.8, 0.42, fill=TEAL_T, radius=0.06)
+    text(s, x + 0.06, 6.49, 1.7, 0.38, [[(t1, {"bold": True, "color": DNAVY})], [(t2, {"size": 6.3})]], size=7.3, color=SUB, anchor=MSO_ANCHOR.MIDDLE)
+# tech stack table
+RX, RW = 9.2, 3.73
+chip(s, RX, 1.22, "TECH STACK", DNAVY)
+rows = [("Perception", BLUE, [("ultralytics", "YOLO"), ("opencv", "OpenCV")]),
+        ("Tracking", GREEN, [("icon:timeline", "ByteTrack")]),
+        ("Depth / Vision", PURPLE, [("icon:layers", "Depth Anything"), ("icon:visibility", "CLIP")]),
+        ("Planning", ORANGE, [("python", "Python"), ("numpy", "NumPy")]),
+        ("Web / Demo", RED, [("flask", "Flask"), ("html", "HTML"), ("css", "CSS"), ("javascript", "JS")]),
+        ("Runtime", "2C5F7C", [("pytorch", "PyTorch"), ("nvidia", "CUDA")])]
+for i, (cat, col, items) in enumerate(rows):
+    y = 1.55 + i * 0.4
+    card(s, RX, y, RW, 0.35, fill=LIGHT if i % 2 == 0 else "FFFFFF", line=None if i % 2 == 0 else "E3E8EF")
+    text(s, RX + 0.1, y, 1.05, 0.35, cat, size=8, bold=True, color=col, anchor=MSO_ANCHOR.MIDDLE)
+    x = RX + 1.15
+    for lg, lab in items:
         if lg.startswith("icon:"):
-            icon(s, lg[5:], lx, ly, ls, {BLUE: "b", GREEN: "g", PURPLE: "n"}.get(col, "n"))
+            icon(s, lg[5:], x, y + 0.07, 0.21, {BLUE: "b", GREEN: "g", PURPLE: "n"}.get(col, "n"))
         else:
-            logo(s, lg, lx, ly, ls)
-        text(s, lx + ls + 0.04, ly, (0.9 if n <= 2 else 0.3) - 0.02, ls, lab, size=6.5 if n <= 2 else 5.5, bold=True, color=NAVY, anchor=MSO_ANCHOR.MIDDLE)
-    text(s, x + 0.04, y + ch_ - 0.2, cw_ - 0.08, 0.16, cap, size=5.5, color=SUB, align=PP_ALIGN.CENTER)
-# -- METHODOLOGY cycle (replaces the reference image)
-remove(shp(s, "Image 3"))
-text(s, 9.7, 3.88, 3.24, 0.28, "METHODOLOGY", size=12, bold=True, color="1F3E7A", underline=True, align=PP_ALIGN.CENTER)
-import math
-cx, cy, rx, ry, r0 = 11.32, 5.38, 1.12, 0.86, 0.22
-circ = [("camera", "Sense", BLUE), ("visibility", "Detect & track", GREEN), ("brain", "Predict motion", ORANGE),
+            logo(s, lg, x, y + 0.07, 0.21)
+        lw_ = 0.1 + 0.058 * len(lab)
+        text(s, x + 0.25, y, lw_, 0.35, lab, size=7.3, bold=True, color=DNAVY, anchor=MSO_ANCHOR.MIDDLE)
+        x += 0.3 + lw_ + (0.04 if len(items) > 2 else 0.12)
+text(s, RX, 3.98, RW, 0.2, "GPU-accelerated inference with open pretrained models", size=7, italic=True, color=SUB)
+# methodology loop
+chip(s, RX, 4.3, "METHODOLOGY", TEAL)
+card(s, RX, 4.62, RW, 2.3, fill=TEAL_T)
+meth = [("camera", "Sense", BLUE), ("visibility", "Detect & track", GREEN), ("brain", "Predict motion", ORANGE),
         ("warning", "Assess path threat", PURPLE), ("route", "Plan trajectory", TEAL), ("loop", "Act & re-plan", RED)]
-rect(s, cx - rx, cy - ry, 2 * rx, 2 * ry, fill=None, line="B8C4D4", lw=1.0, dash="dash", shape=MSO_SHAPE.OVAL)
-for k, (ic, lab, col) in enumerate(circ):
-    a = -math.pi / 2 + k * 2 * math.pi / len(circ)
-    px, py = cx + rx * math.cos(a), cy + ry * math.sin(a)
-    icon(s, ic, px - r0, py - r0, 2 * r0, "w", circle=col, pad=0.22)
-    rect(s, px - r0 - 0.04, py - r0 - 0.04, 0.15, 0.15, fill=col, line="FFFFFF", lw=0.75, shape=MSO_SHAPE.OVAL)
-    text(s, px - r0 - 0.04, py - r0 - 0.04, 0.15, 0.15, str(k + 1), size=5.5, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-    ly = py + r0 + 0.01 if math.sin(a) >= -0.1 else py - r0 - 0.17
-    text(s, px - 0.55, ly, 1.1, 0.16, lab, size=6, bold=True, color=NAVY, align=PP_ALIGN.CENTER)
-text(s, cx - 0.62, cy - 0.2, 1.24, 0.22, "PATHSENSE", size=10.5, bold=True, color="1F3E7A", align=PP_ALIGN.CENTER)
-text(s, cx - 0.62, cy + 0.02, 1.24, 0.3, "Continuous perception-to-planning loop", size=5.8, color=SUB, align=PP_ALIGN.CENTER)
+xs = [RX + 0.55, RX + 1.86, RX + 3.17]
+for k, (ic, lab, col) in enumerate(meth):
+    row, c = (0, k) if k < 3 else (1, 5 - k)
+    cx_, cy_ = xs[c], 5.0 + row * 1.02
+    icon(s, ic, cx_ - 0.24, cy_ - 0.24, 0.48, "w", circle=col, pad=0.22)
+    rect(s, cx_ - 0.3, cy_ - 0.3, 0.17, 0.17, fill=DNAVY, shape=MSO_SHAPE.OVAL)
+    text(s, cx_ - 0.3, cy_ - 0.3, 0.17, 0.17, str(k + 1), size=6.5, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, cx_ - 0.62, cy_ + 0.27, 1.24, 0.2, lab, size=7, bold=True, color=DNAVY, align=PP_ALIGN.CENTER)
+for a, b in [(0, 1), (1, 2)]:
+    arrow(s, xs[a] + 0.3, 5.0, xs[b] - 0.3, 5.0, color=DNAVY, width=1.2)
+    arrow(s, xs[b] - 0.3, 6.02, xs[a] + 0.3, 6.02, color=DNAVY, width=1.2)
+arrow(s, xs[2], 5.49, xs[2], 5.74, color=DNAVY, width=1.2)
+arrow(s, xs[0], 5.74, xs[0], 5.49, color=DNAVY, width=1.2)
+text(s, RX + 0.9, 5.44, RW - 1.8, 0.34, "Continuous perception-to-planning loop", size=6.8, italic=True, color=SUB, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
 
-# ================================================================== 4. PROTOTYPE (concept views - no screenshots)
-s = SL[3]
-remove(shp(s, "Login Wireframe Border"))
-for n in ("Login Wireframe", "Home Wireframe", "Login Final", "Home Final"):
-    remove(shp(s, n))
-fill(shp(s, "Heading Wireframes"), [[("Concept Views", "b")]])
-fill(shp(s, "Caption Login Final"), [[("Perception View", "b")]])
-fill(shp(s, "Caption Home Wireframe"), [[("Planning View", "b")]])
-fill(shp(s, "Heading Expected Delivery"), [[("Before vs After", "b")]])
-place(shp(s, "Heading Wireframes"), x=0.46, y=1.2)
-place(shp(s, "Caption Login Final"), x=2.6, y=1.3, w=2.5)
-place(shp(s, "Caption Home Wireframe"), x=6.6, y=1.3, w=2.5)
-place(shp(s, "Heading Expected Delivery"), x=0.46, y=3.88)
-picture(s, "p_perception", "perception", 0.46, 1.62, 4.6, 2.1, 0.5, 0.55, 1.35)
-picture(s, "p_planning", "planning", 5.3, 1.62, 4.6, 2.1, 0.5, 0.5, 1.2)
-text(s, 0.52, 3.74, 4.5, 0.18, "Road users detected as 3D boxes; predicted motion as dashed arrows", size=7.5, color=SUB, italic=True)
-text(s, 5.36, 3.74, 4.5, 0.18, "Candidate paths fanned out; conflicting paths (red) rejected; safe path (teal) kept", size=7.5, color=SUB, italic=True)
-picture(s, "p_before", "before", 0.46, 4.3, 4.6, 2.45, 0.45, 0.55, 1.2)
-picture(s, "p_after", "corridor", 5.3, 4.3, 4.6, 2.45, 0.45, 0.55, 1.2)
-arrow(s, 5.08, 5.52, 5.28, 5.52, color=NAVY, width=2)
-for x, lab, col in [(0.56, "BEFORE  ·  lane-following assumption: path runs into the work zone", RED),
-                    (5.4, "AFTER  ·  PathSense adapts the corridor around the obstacle", TEAL)]:
-    rect(s, x, 4.38, 4.4, 0.26, fill="FFFFFF", line=col, lw=1.0, radius=0.06)
-    text(s, x, 4.38, 4.4, 0.26, lab, size=7.5, bold=True, color=col, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-cd = shp(s, "Current Development Box")
-place(cd, x=10.2, y=1.62, w=3.0, h=2.6)
-cd.text_frame.word_wrap = True
-cd.text_frame.clear()
-tf = cd.text_frame
-paras = [[("Current Development", {"bold": True, "size": 18})],
-         [("Working prototype: ", {"bold": True, "size": 11}), ("camera-based perception, tracking, motion understanding and adaptive path planning", {"size": 11})],
-         [("Code repository:", {"bold": True, "size": 11})],
-         [("github.com/MalyalaKarthik66/pathsense-prototype", {"size": 10, "url": REPO, "underline": True, "color": "1155CC"})],
-         [("Live demonstration shown separately during evaluation.", {"size": 10, "italic": True, "color": SUB})]]
-for i, para in enumerate(paras):
-    p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-    p.space_after = Pt(6)
-    for t, o in para:
-        r = p.add_run(); r.text = t
-        r.font.name = "Arial"; r.font.size = Pt(o.get("size", 11)); r.font.bold = o.get("bold", False)
-        r.font.italic = o.get("italic", False); r.font.underline = o.get("underline", False)
-        r.font.color.rgb = rgb(o.get("color", INK))
-        if o.get("url"):
-            r.hyperlink.address = o["url"]
-rect(s, 10.2, 4.35, 2.95, 1.8, fill="EAF2FB", line="8FB5DE")
-text(s, 10.34, 4.43, 2.7, 0.26, "What the prototype demonstrates", size=10, bold=True, color=NAVY)
-text(s, 10.34, 4.75, 2.72, 1.35, ["Detection & tracking of mixed Indian road users", "Path-threat reasoning: oncoming vs. entering the path",
-     "Adaptive candidate-path planning around obstacles", "Explainable decisions with replay"], size=8.5, color=INK, bullets=True, space=3)
-text(s, 10.2, 6.3, 3.0, 0.4, "Visuals on this slide are original concept renders, not application screenshots.", size=7, color=GREY, italic=True)
-# page number like the other slides
-num = deepcopy(shp(SL[2], "Text 4")._element)
-s.shapes._spTree.append(num)
-page_number(s, 4)
+# ================================================================== 4. PROTOTYPE - four real screenshots of the web app
+s = new_slide(4, "PROTOTYPE", "Screens from the working PathSense web application (research prototype)")
+shots = [("1_home", "01", "Landing page", "Entry point; “Try PathSense” opens the app (Demo · Live · Emergency)"),
+         ("2_demo", "02", "Demo playback", "Processed drive: detections, bird’s-eye candidate trajectories, decision and reason"),
+         ("3_replay", "03", "Replay of key moments", "Each moment lists object, distance, TTC and path status; click to replay"),
+         ("4_emergency", "04", "Emergency (simulation mode)", "Confirmation-first workflow; never contacts real services automatically")]
+SW, SH = 4.36, 4.36 * 9 / 16
+for i, (nm, num, t1, t2) in enumerate(shots):
+    x, y = L + (i % 2) * (SW + 0.16), 1.22 + (i // 2) * (SH + 0.43)
+    text(s, x, y, 0.4, 0.3, num, size=13, bold=True, color=TEAL, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.42, y, SW - 0.42, 0.3, [[(t1 + "  ", {"bold": True, "color": DNAVY, "size": 9}), (t2, {})]], size=7, color=SUB, anchor=MSO_ANCHOR.MIDDLE)
+    pic = s.shapes.add_picture(screen(nm, SW, SH, fy=0.0), Inches(x), Inches(y + 0.32), Inches(SW), Inches(SH))
+    pic.line.color.rgb = rgb("C9D3E0"); pic.line.width = Pt(0.75)
+PX_ = L + 2 * SW + 0.36
+PW_ = 12.93 - PX_
+card(s, PX_, 1.22, PW_, 2.75, fill=DNAVY)
+text(s, PX_ + 0.18, 1.34, PW_ - 0.3, 2.55, [
+    [("Current Development", {"bold": True, "size": 15})],
+    [("Working prototype: ", {"bold": True}), ("camera-based perception, tracking, motion understanding and adaptive path planning", {})],
+    [("Code repository:", {"bold": True})],
+    [("github.com/MalyalaKarthik66/pathsense-prototype", {"size": 8.5, "url": REPO, "underline": True, "color": "9FE3D9"})],
+    [("Live demonstration shown separately during evaluation.", {"italic": True, "size": 8.5, "color": "C9D6E8"})]],
+    size=9.5, color="FFFFFF", space=6)
+card(s, PX_, 4.12, PW_, 2.8, fill=TEAL_T)
+text(s, PX_ + 0.18, 4.24, PW_ - 0.3, 0.26, "What the prototype demonstrates", size=10.5, bold=True, color=DNAVY)
+text(s, PX_ + 0.18, 4.6, PW_ - 0.32, 2.25, ["Detection & tracking of mixed Indian road users", "Path-threat reasoning: oncoming vs. entering the path",
+     "Adaptive candidate-path planning around obstacles", "Explainable decisions with replay"], size=9, color=INK, bullets=True, space=6)
 
 # ================================================================== 5. FEASIBILITY AND VIABILITY
-s = SL[4]
-page_number(s, 5)
-fill(shp(s, "Text 6"), [[("RISKS → MITIGATION", "b")]])
-fill(shp(s, "Text 7"), [[(a + " → ", "b"), (b, "n")] for a, b in [
-    ("Unstructured road geometry", "Drivable-corridor estimation and path-aware planning."),
-    ("Unpredictable road-user behaviour", "Temporal tracking and short-term motion reasoning."),
-    ("Perception uncertainty", "Confidence-aware decisions and future sensor fusion."),
-    ("Real-world validation complexity", "Scenario library + simulation + controlled field testing.")]])
-fill(shp(s, "Text 8"), [[("FEASIBILITY", "b")]])
-fill(shp(s, "Text 9"), [[(a, "b"), (b, "n")] for a, b in [
-    ("Technology: ", "Established computer-vision and motion-planning building blocks; camera-based perception to start."),
-    ("Architecture: ", "Modular perception → prediction → planning; radar / LiDAR and vehicle-state inputs added progressively; scenario-based simulation supports development.")]])
-fill(shp(s, "Text 10"), [[("VIABILITY", "b")]])
-fill(shp(s, "Text 11"), [[(a, "b"), (b, "n")] for a, b in [
-    ("Relevance: ", "Mixed, irregular traffic on urban roads, village roads, highways and dense traffic."),
-    ("Deployment: ", "Modular architecture supports incremental deployment through controlled pilots."),
-    ("Future fit: ", "Can integrate with future intelligent-vehicle platforms.")]])
-remove(shp(s, "Picture 17"))
-remove(shp(s, "Picture 18"))
-stages = [("PROTOTYPE", 7.85, 1.26, "Camera-based proof of concept", " for perception, tracking and adaptive path planning."),
-          ("PILOT", 9.62, 2.42, "Multi-scenario validation", " with richer sensing, simulation and controlled road testing."),
-          ("PRODUCTION", 7.72, 3.58, "Vehicle-grade multi-sensor integration", ", closed-loop validation and automotive safety engineering.")]
-for t1, x, y, b1, b2 in stages:
-    rect(s, x, y, 3.3, 1.0, fill=BEIGE)
-    text(s, x + 0.12, y + 0.05, 3.1, 0.42, t1, size=22, bold=True, color=INK, font="Calibri")
-    text(s, x + 0.14, y + 0.48, 3.08, 0.5, [[("●  ", {"size": 8}), (b1, {"bold": True}), (b2, {})]], size=10.5, color=INK, font="Calibri")
-arrow(s, 11.25, 1.55, 11.95, 2.38, color=INK, width=3, kind=MSO_CONNECTOR.CURVE)
-arrow(s, 9.55, 2.8, 9.0, 3.54, color=INK, width=3, kind=MSO_CONNECTOR.CURVE)
-text(s, 7.75, 4.78, 5.23, 0.32, "Potential Collaborators / Partners", size=15, bold=True, color=INK, font="Cambria",
-     align=PP_ALIGN.CENTER, underline=True)
+s = new_slide(5, "FEASIBILITY AND VIABILITY")
+cols2 = [("FEASIBILITY", "check", DNAVY, [("Technology: ", "Established computer-vision and motion-planning building blocks; camera-based perception to start."),
+                                          ("Architecture: ", "Modular perception → prediction → planning; radar / LiDAR and vehicle-state inputs added progressively; scenario-based simulation supports development.")]),
+         ("VIABILITY", "rocket", TEAL, [("Relevance: ", "Mixed, irregular traffic on urban roads, village roads, highways and dense traffic."),
+                                        ("Deployment: ", "Modular architecture supports incremental deployment through controlled pilots."),
+                                        ("Future fit: ", "Can integrate with future intelligent-vehicle platforms.")])]
+for i, (t1, ic, col, pts) in enumerate(cols2):
+    x = L + i * 4.02
+    card(s, x, 1.22, 3.9, 2.05, fill=LIGHT)
+    rect(s, x, 1.22, 3.9, 0.42, fill=col, radius=0.07)
+    icon(s, ic, x + 0.12, 1.29, 0.28, "w")
+    text(s, x + 0.5, 1.22, 3.3, 0.42, t1, size=12, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.16, 1.78, 3.6, 1.8, [[(a, {"bold": True, "color": DNAVY}), (b, {})] for a, b in pts], size=9.5, color=INK, bullets=True, space=5)
+chip(s, L, 3.45, "RISKS → MITIGATION", CORAL)
+risks = [("Unstructured road geometry", "Drivable-corridor estimation and path-aware planning."),
+         ("Unpredictable road-user behaviour", "Temporal tracking and short-term motion reasoning."),
+         ("Perception uncertainty", "Confidence-aware decisions and future sensor fusion."),
+         ("Real-world validation complexity", "Scenario library + simulation + controlled field testing.")]
+rect(s, L, 3.77, 7.92, 0.34, fill=DNAVY)
+text(s, L + 0.15, 3.77, 3.2, 0.34, "RISK", size=8.5, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+text(s, L + 3.85, 3.77, 3.9, 0.34, "MITIGATION", size=8.5, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+for i, (r_, m_) in enumerate(risks):
+    y = 4.11 + i * 0.7
+    rect(s, L, y, 7.92, 0.7, fill=LIGHT if i % 2 == 0 else "FFFFFF", line="E3E8EF")
+    icon(s, "warning", L + 0.12, y + 0.22, 0.26, "r")
+    text(s, L + 0.48, y, 3.0, 0.7, r_, size=9.5, bold=True, color=DNAVY, anchor=MSO_ANCHOR.MIDDLE)
+    arrow(s, L + 3.4, y + 0.35, L + 3.72, y + 0.35, color=TEAL, width=1.5)
+    text(s, L + 3.85, y, 3.95, 0.7, m_, size=9.5, color=INK, anchor=MSO_ANCHOR.MIDDLE)
+RX = 8.62
+RW = 12.93 - RX
+chip(s, RX, 1.22, "PROTOTYPE → PILOT → PRODUCTION", DNAVY)
+stages = [("PROTOTYPE", DNAVY, "Camera-based proof of concept", " for perception, tracking and adaptive path planning."),
+          ("PILOT", TEAL, "Multi-scenario validation", " with richer sensing, simulation and controlled road testing."),
+          ("PRODUCTION", AMBER, "Vehicle-grade multi-sensor integration", ", closed-loop validation and automotive safety engineering.")]
+rect(s, RX + 0.24, 1.72, 0.04, 2.3, fill="C9D3E0")
+for i, (t1, col, b1, b2) in enumerate(stages):
+    y = 1.62 + i * 0.95
+    rect(s, RX + 0.08, y + 0.02, 0.36, 0.36, fill=col, shape=MSO_SHAPE.OVAL)
+    text(s, RX + 0.08, y + 0.02, 0.36, 0.36, str(i + 1), size=10, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, RX + 0.58, y, RW - 0.6, 0.3, t1, size=13, bold=True, color=col)
+    text(s, RX + 0.58, y + 0.3, RW - 0.6, 0.55, [[(b1, {"bold": True}), (b2, {})]], size=8.8, color=INK)
+chip(s, RX, 4.55, "POTENTIAL COLLABORATORS / PARTNERS", TEAL)
 partners = [("car", "Automotive OEMs & Tier-1s", "ADAS / AV integration"), ("science", "Research institutes", "IITs, IISc, AV labs"),
             ("layers", "Simulation partners", "e.g. MathWorks toolchain"), ("shield", "Road-safety bodies", "MoRTH, state transport"),
             ("bus", "Fleet operators", "Buses, taxis, logistics"), ("map", "Mapping & data", "OpenStreetMap, IDD")]
 for i, (ic, t1, t2) in enumerate(partners):
-    x, y = 7.8 + (i % 3) * 1.73, 5.2 + (i // 3) * 0.8
-    rect(s, x, y, 1.66, 0.72, fill="FFFFFF", line=LINE, radius=0.06)
-    icon(s, ic, x + 0.08, y + 0.17, 0.38, "w", circle=[BLUE, GREEN, PURPLE, RED, ORANGE, TEAL][i], pad=0.2)
-    text(s, x + 0.52, y + 0.12, 1.1, 0.3, t1, size=7.5, bold=True, color=NAVY)
-    text(s, x + 0.52, y + 0.44, 1.1, 0.2, t2, size=6.3, color=SUB)
+    x, y = RX + (i % 2) * (RW / 2 + 0.02), 4.9 + (i // 2) * 0.68
+    card(s, x, y, RW / 2 - 0.06, 0.6)
+    icon(s, ic, x + 0.07, y + 0.12, 0.36, "w", circle=[BLUE, GREEN, PURPLE, RED, ORANGE, TEAL][i], pad=0.2)
+    text(s, x + 0.5, y + 0.07, RW / 2 - 0.6, 0.26, t1, size=7.8, bold=True, color=DNAVY)
+    text(s, x + 0.5, y + 0.34, RW / 2 - 0.6, 0.22, t2, size=6.8, color=SUB)
 
 # ================================================================== 6. PROOF OF CONCEPT, IMPACT & BENEFITS
-s = SL[5]
-page_number(s, 6)
-fill(shp(s, "Text 109"), [[(a + ": ", "b"), (b, "n")] for a, b in [
-    ("Drivers / Passengers", "Improved handling of unpredictable road interactions"),
-    ("Urban Mobility", "More adaptive navigation in dense mixed traffic"),
-    ("Rural Mobility", "Better operation on roads with limited lane structure"),
-    ("Road Safety", "Earlier recognition of path conflicts and adaptive response"),
-    ("Future Autonomous Vehicles", "A foundation for Indian-road-aware navigation")]])
-for lab_shape, txt_shape, lab, pts in [
-        ("Text 117", "Text 118", "SAFETY", ["Path-aware collision avoidance", "Earlier recognition of path conflicts"]),
-        ("Text 120", "Text 121", "ADAPTABILITY", ["Handles changing road and traffic conditions", "Works where lane markings are unreliable"]),
-        ("Text 123", "Text 124", "SCALABILITY", ["Can evolve from prototype → pilot → production", "Modular: new sensors and platforms plug in"]),
-        ("Text 126", "Text 127", "INDIAN-ROAD RELEVANCE", ["Designed around mixed and irregular road behaviour", "Safer shared roads for pedestrians and two-wheelers"])]:
-    fill(shp(s, lab_shape), [[(lab, "b")]])
-    fill(shp(s, txt_shape), [[(p, "n")] for p in pts])
-fill(shp(s, "Text 129"), [[("PoC", "b", {"sz": 8})]])
+s = new_slide(6, "PROOF OF CONCEPT, IMPACT & BENEFITS")
+chip(s, L, 1.22, "PROOF OF CONCEPT", DNAVY)
 poc = [("PROBLEM", "Unstructured Indian roads create difficult path-planning conditions"),
        ("OBJECTIVE", "Safe adaptive trajectories without relying solely on lane markings"),
        ("PROTOTYPE", "Camera-based perception, tracking, motion understanding and adaptive planning"),
        ("VALIDATION", "Scenario-based evaluation across mixed-traffic road situations"),
        ("SUCCESS CRITERIA", "Safe path selection, appropriate risk response, robust behaviour across roads"),
        ("NEXT STEPS", "Sensor fusion, closed-loop simulation, broader field trials, vehicle integration")]
-for (t1, t2), n in zip(poc, (134, 139, 144, 149, 154, 159)):
-    fill(shp(s, f"Text {n}"), [(0, [(t1, "b")]), (1, [(t2, "n")])])
-fill(shp(s, "Text 161"), [[("Resources: ", "b"), ("computer vision & motion planning, road-scene video, simulation tools, compute hardware", "n")]])
+pcols = [BLUE, "D4A017", GREEN, PURPLE, ORANGE, TEAL]
+seg = 12.53 / 6
+rect(s, L + seg / 2, 1.83, seg * 5, 0.04, fill="C9D3E0")
+for i, ((t1, t2), col) in enumerate(zip(poc, pcols)):
+    cx_ = L + seg * i + seg / 2
+    rect(s, cx_ - 0.24, 1.61, 0.48, 0.48, fill=col, line="FFFFFF", lw=2, shape=MSO_SHAPE.OVAL)
+    text(s, cx_ - 0.24, 1.61, 0.48, 0.48, str(i + 1), size=13, bold=True, color="FFFFFF", align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    card(s, cx_ - seg / 2 + 0.05, 2.18, seg - 0.1, 1.05)
+    text(s, cx_ - seg / 2 + 0.14, 2.25, seg - 0.28, 0.24, t1, size=8.8, bold=True, color=col, align=PP_ALIGN.CENTER)
+    text(s, cx_ - seg / 2 + 0.14, 2.5, seg - 0.28, 0.7, t2, size=8, color=INK, align=PP_ALIGN.CENTER)
+rect(s, L, 3.33, 12.53, 0.32, fill=TEAL_T, radius=0.05)
+text(s, L + 0.15, 3.33, 12.2, 0.32, [[("Resources: ", {"bold": True, "color": DNAVY}), ("computer vision & motion planning, road-scene video, simulation tools, compute hardware", {})]],
+     size=9, color=INK, anchor=MSO_ANCHOR.MIDDLE)
+chip(s, L, 3.85, "POTENTIAL IMPACTS", TEAL)
+text(s, L + 2.0, 3.85, 3.0, 0.25, "Target Audience", size=9, bold=True, color=TEAL, anchor=MSO_ANCHOR.MIDDLE)
+imp = [("car", "Drivers / Passengers", "Improved handling of unpredictable road interactions"),
+       ("bus", "Urban Mobility", "More adaptive navigation in dense mixed traffic"),
+       ("map", "Rural Mobility", "Better operation on roads with limited lane structure"),
+       ("shield", "Road Safety", "Earlier recognition of path conflicts and adaptive response"),
+       ("rocket", "Future Autonomous Vehicles", "A foundation for Indian-road-aware navigation")]
+for i, (ic, t1, t2) in enumerate(imp):
+    y = 4.2 + i * 0.55
+    card(s, L, y, 6.1, 0.49, fill=LIGHT if i % 2 == 0 else "FFFFFF", line=None if i % 2 == 0 else "E3E8EF")
+    icon(s, ic, L + 0.1, y + 0.08, 0.33, "w", circle=TEAL, pad=0.2)
+    text(s, L + 0.55, y, 5.45, 0.49, [[(t1 + ": ", {"bold": True, "color": DNAVY}), (t2, {})]], size=9.3, color=INK, anchor=MSO_ANCHOR.MIDDLE)
+BX = 6.75
+chip(s, BX, 3.85, "BENEFITS", AMBER)
+ben = [("shield", "SAFETY", BLUE, ["Path-aware collision avoidance", "Earlier recognition of path conflicts"]),
+       ("tune", "ADAPTABILITY", "D4A017", ["Handles changing road and traffic conditions", "Works where lane markings are unreliable"]),
+       ("layers", "SCALABILITY", GREEN, ["Can evolve from prototype → pilot → production", "Modular: new sensors and platforms plug in"]),
+       ("map", "INDIAN-ROAD RELEVANCE", PURPLE, ["Designed around mixed and irregular road behaviour", "Safer shared roads for pedestrians and two-wheelers"])]
+bw = (12.93 - BX - 0.12) / 2
+for i, (ic, t1, col, pts) in enumerate(ben):
+    x, y = BX + (i % 2) * (bw + 0.12), 4.2 + (i // 2) * 1.38
+    card(s, x, y, bw, 1.3, fill="FFFFFF", line="D5DDE8")
+    icon(s, ic, x + 0.12, y + 0.12, 0.36, "w", circle=col, pad=0.2)
+    text(s, x + 0.56, y + 0.12, bw - 0.6, 0.36, t1, size=9.5, bold=True, color=col, anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.14, y + 0.56, bw - 0.25, 0.72, pts, size=8.5, color=INK, bullets=True, space=3)
 
 # ================================================================== 7. BUSINESS MODEL CANVAS
-s = SL[6]
-page_number(s, 7)
-bmc = {
-    "Text 8": [("OEMs:", " Automotive OEMs & Tier-1 ADAS suppliers"), ("ACADEMIA:", " IITs, IISc & autonomy research labs"),
-               ("SIMULATION:", " MathWorks toolchain (RoadRunner, Automated Driving Toolbox)"), ("DATA:", " Indian driving datasets (IDD), OpenStreetMap"),
-               ("GOVT:", " MoRTH, state transport & road-safety bodies"), ("FLEETS:", " Logistics, taxi & public-transport operators")],
-    "Text 11": [("PERCEPTION R&D:", " Detection, tracking & depth"), ("PLANNING:", " Adaptive trajectory & risk logic"),
-                ("VALIDATION:", " Scenario library & simulation"), ("INTEGRATION:", " Vehicle / ADAS interfaces")],
-    "Text 14": [("SOFTWARE STACK:", " Perception-to-planning pipeline"), ("DATA:", " Indian-road scenario library"),
-                ("TEAM:", " CV, robotics & software engineers"), ("TOOLS:", " Simulation & compute infrastructure")],
-    "Text 17": [("OEMs:", " An Indian-road-aware planning layer"), ("FLEETS:", " Fewer conflicts in mixed traffic"),
-                ("ROAD USERS:", " Earlier recognition of path conflicts"), ("RESEARCHERS:", " Scenario-based validation workflow"),
-                ("EXPLAINABLE:", " Every decision comes with its reason"), ("MODULAR:", " Camera-first, sensor-ready architecture")],
-    "Text 20": [("CO-DEVELOPMENT:", " Pilot programmes with OEMs"), ("SUPPORT:", " Integration & tuning"),
-                ("UPDATES:", " Continuous model & scenario updates"), ("TRANSPARENCY:", " Decision logs for audit")],
-    "Text 23": [("DIRECT B2B:", " OEM & Tier-1 partnerships"), ("PILOTS:", " Fleet & campus deployments"),
-                ("RESEARCH:", " Academic collaborations"), ("SDK / API:", " Licensable software modules")],
-    "Text 26": [("PRIMARY:", " Automotive OEMs & ADAS suppliers"), ("SECONDARY:", " Fleet & logistics operators"),
-                ("PUBLIC:", " Transport & road-safety agencies"), ("RESEARCH:", " AV labs & testing bodies"),
-                ("SCALE-UP:", " City → state → national deployments")],
-    "Text 31": [("R&D", " – perception & planning engineering"), ("Data", " – collection, annotation & scenario building"),
-                ("Compute", " – training & simulation infrastructure"), ("Validation", " – field testing & safety engineering"),
-                ("Operations", " – integration, support & updates")],
-    "Text 36": [("Software licensing", " – per-vehicle / per-platform licences for OEMs"), ("Pilot contracts", " – fleet & campus deployments"),
-                ("Scenario-library access", " – validation datasets & tools"), ("Integration services", " – customisation & calibration"),
-                ("Support & updates", " – annual maintenance subscriptions")],
-}
-for name, items in bmc.items():
-    fill(shp(s, name), [[(a, "b"), (b, "n")] for a, b in items])
+s = new_slide(7, "BUSINESS MODEL CANVAS")
+bmc = [("Key Partnerships", "flag", 0, 0, 1, 2, [("OEMs:", " Automotive OEMs & Tier-1 ADAS suppliers"), ("ACADEMIA:", " IITs, IISc & autonomy research labs"),
+        ("SIMULATION:", " MathWorks toolchain (RoadRunner, Automated Driving Toolbox)"), ("DATA:", " Indian driving datasets (IDD), OpenStreetMap"),
+        ("GOVT:", " MoRTH, state transport & road-safety bodies"), ("FLEETS:", " Logistics, taxi & public-transport operators")]),
+       ("Key Activities", "bolt", 1, 0, 1, 1, [("PERCEPTION R&D:", " Detection, tracking & depth"), ("PLANNING:", " Adaptive trajectory & risk logic"),
+        ("VALIDATION:", " Scenario library & simulation"), ("INTEGRATION:", " Vehicle / ADAS interfaces")]),
+       ("Key Resources", "layers", 1, 1, 1, 1, [("SOFTWARE STACK:", " Perception-to-planning pipeline"), ("DATA:", " Indian-road scenario library"),
+        ("TEAM:", " CV, robotics & software engineers"), ("TOOLS:", " Simulation & compute infrastructure")]),
+       ("Value Propositions", "check", 2, 0, 1, 2, [("OEMs:", " An Indian-road-aware planning layer"), ("FLEETS:", " Fewer conflicts in mixed traffic"),
+        ("ROAD USERS:", " Earlier recognition of path conflicts"), ("RESEARCHERS:", " Scenario-based validation workflow"),
+        ("EXPLAINABLE:", " Every decision comes with its reason"), ("MODULAR:", " Camera-first, sensor-ready architecture")]),
+       ("Customer Relationships", "phone", 3, 0, 1, 1, [("CO-DEVELOPMENT:", " Pilot programmes with OEMs"), ("SUPPORT:", " Integration & tuning"),
+        ("UPDATES:", " Continuous model & scenario updates"), ("TRANSPARENCY:", " Decision logs for audit")]),
+       ("Channels", "truck", 3, 1, 1, 1, [("DIRECT B2B:", " OEM & Tier-1 partnerships"), ("PILOTS:", " Fleet & campus deployments"),
+        ("RESEARCH:", " Academic collaborations"), ("SDK / API:", " Licensable software modules")]),
+       ("Customer Segments", "car", 4, 0, 1, 2, [("PRIMARY:", " Automotive OEMs & ADAS suppliers"), ("SECONDARY:", " Fleet & logistics operators"),
+        ("PUBLIC:", " Transport & road-safety agencies"), ("RESEARCH:", " AV labs & testing bodies"), ("SCALE-UP:", " City → state → national deployments")])]
+colw, gap, top, rowh = (12.53 - 4 * 0.1) / 5, 0.1, 1.22, 1.9
+bcols = [DNAVY, TEAL, "2C5F7C", AMBER, "1B4F6E", "137A87", CORAL]
+for k, (t1, ic, c, r, cs, rs, items) in enumerate(bmc):
+    x, y = L + c * (colw + gap), top + r * (rowh + gap)
+    h = rowh * rs + gap * (rs - 1)
+    card(s, x, y, colw, h, fill=LIGHT)
+    rect(s, x, y, colw, 0.34, fill=bcols[k], radius=0.07)
+    icon(s, ic, x + 0.1, y + 0.06, 0.22, "w")
+    text(s, x + 0.38, y, colw - 0.4, 0.34, t1, size=9.5, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.1, y + 0.42, colw - 0.18, h - 0.48, [[(a, {"bold": True, "color": DNAVY}), (b, {})] for a, b in items],
+         size=8.8, color=INK, bullets=True, space=3)
+by = top + 2 * rowh + 2 * gap
+bh = 6.95 - by
+for k, (t1, ic, items) in enumerate([
+        ("Cost Structure", "tune", [("R&D", " – perception & planning engineering"), ("Data", " – collection, annotation & scenario building"),
+                                    ("Compute", " – training & simulation infrastructure"), ("Validation", " – field testing & safety engineering"),
+                                    ("Operations", " – integration, support & updates")]),
+        ("Revenue Streams", "rocket", [("Software licensing", " – per-vehicle / per-platform licences for OEMs"), ("Pilot contracts", " – fleet & campus deployments"),
+                                       ("Scenario-library access", " – validation datasets & tools"), ("Integration services", " – customisation & calibration"),
+                                       ("Support & updates", " – annual maintenance subscriptions")])]):
+    w = (12.53 - gap) / 2
+    x = L + k * (w + gap)
+    card(s, x, by, w, bh, fill=LIGHT)
+    rect(s, x, by, 0.34 + 0.09 * len(t1) + 0.3, 0.32, fill=[DNAVY, TEAL][k], radius=0.07)
+    icon(s, ic, x + 0.1, by + 0.05, 0.22, "w")
+    text(s, x + 0.38, by, 2.2, 0.32, t1, size=9.5, bold=True, color="FFFFFF", anchor=MSO_ANCHOR.MIDDLE)
+    text(s, x + 0.12, by + 0.38, w - 0.2, bh - 0.42, [[(a, {"bold": True, "color": DNAVY}), (b, {})] for a, b in items],
+         size=9, color=INK, bullets=True, space=2)
 
 # ================================================================== 8. RESEARCH AND REFERENCES
-s = SL[7]
-page_number(s, 8)
-fill(shp(s, "Text 5"), [[("NATIONAL ALIGNMENT", "b")]])
-papers = {
-    "Text 8": ("AUTONOMOUS DRIVING & PATH PLANNING", "“A Survey of Motion Planning and Control Techniques for Self-Driving Urban Vehicles”",
-               "  Paden et al. — IEEE T-IV, 2016", "arxiv.org/abs/1604.07446"),
-    "Text 9": ("OBJECT DETECTION & TRACKING", "“ByteTrack: Multi-Object Tracking by Associating Every Detection Box”",
-               "  Zhang et al. — ECCV, 2022", "arxiv.org/abs/2110.06864"),
-    "Text 10": ("DEPTH ESTIMATION", "“Depth Anything V2”", "  Yang et al. — NeurIPS, 2024", "arxiv.org/abs/2406.09414"),
-    "Text 11": ("MOTION PREDICTION", "“Social LSTM: Human Trajectory Prediction in Crowded Spaces”",
-                "  Alahi et al. — CVPR, 2016", "openaccess.thecvf.com"),
-}
-for name, (cat, title, who, url) in papers.items():
-    fill(shp(s, name), [(0, [(cat, "b")]), (1, [(title, "i"), (who, "n")]), (1, [(url, "l", {"url": "https://" + url})])])
-fill(shp(s, "Text 13"), [[("INDIAN ROAD DATA", "b")]])
-fill(shp(s, "Text 16"), [[("SIH & CONTEXT", "b")]])
-fill(shp(s, "Text 19"), [[("TECHNICAL DOCS", "b")]])
-
-
-def link_list(items):
-    out = []
+s = new_slide(8, "RESEARCH AND REFERENCES")
+chip(s, L, 1.22, "SUPPORTING RESEARCH PAPERS", DNAVY)
+papers = [("AUTONOMOUS DRIVING & PATH PLANNING", "“A Survey of Motion Planning and Control Techniques for Self-Driving Urban Vehicles”",
+           "Paden et al. — IEEE T-IV, 2016", "arxiv.org/abs/1604.07446"),
+          ("OBJECT DETECTION & TRACKING", "“ByteTrack: Multi-Object Tracking by Associating Every Detection Box”",
+           "Zhang et al. — ECCV, 2022", "arxiv.org/abs/2110.06864"),
+          ("DEPTH ESTIMATION", "“Depth Anything V2”", "Yang et al. — NeurIPS, 2024", "arxiv.org/abs/2406.09414"),
+          ("MOTION PREDICTION", "“Social LSTM: Human Trajectory Prediction in Crowded Spaces”", "Alahi et al. — CVPR, 2016", "openaccess.thecvf.com")]
+PWd = (8.15 - 0.12) / 2
+for i, (cat, title, who, url) in enumerate(papers):
+    x, y = L + (i % 2) * (PWd + 0.12), 1.55 + (i // 2) * 1.2
+    card(s, x, y, PWd, 1.12, fill=LIGHT)
+    text(s, x + 0.14, y + 0.1, PWd - 0.25, 0.2, cat, size=7.8, bold=True, color=TEAL)
+    text(s, x + 0.14, y + 0.32, PWd - 0.25, 0.8, [[(title, {"italic": True, "color": DNAVY})], [(who, {"size": 8, "color": SUB})],
+                                                  [(url, {"size": 8, "url": "https://" + url, "underline": True, "color": "1155CC"})]], size=9, space=1)
+lists = [("INDIAN ROAD DATA", "map", GREEN, [("IDD – Indian Driving Dataset", "idd.insaan.iiit.ac.in"), ("MoRTH – Road Accidents in India", "morth.nic.in"),
+                                             ("OpenStreetMap", "openstreetmap.org"), ("Wikimedia Commons", "commons.wikimedia.org")]),
+         ("SIH & CONTEXT", "flag", AMBER, [("SIH 2026 – PS SIH26037", "sih.gov.in"), ("MathWorks – RoadRunner & ADT", "mathworks.com")]),
+         ("TECHNICAL DOCS", "web", PURPLE, [("Ultralytics YOLO", "docs.ultralytics.com"), ("PyTorch", "pytorch.org/docs"),
+                                            ("OpenCV", "docs.opencv.org"), ("Flask", "flask.palletsprojects.com")])]
+lw3 = (8.15 - 0.24) / 3
+for i, (t1, ic, col, items) in enumerate(lists):
+    x = L + i * (lw3 + 0.12)
+    card(s, x, 4.05, lw3, 2.5, fill="FFFFFF", line="D5DDE8")
+    icon(s, ic, x + 0.12, 4.15, 0.3, "w", circle=col, pad=0.2)
+    text(s, x + 0.5, 4.15, lw3 - 0.55, 0.3, t1, size=8.8, bold=True, color=DNAVY, anchor=MSO_ANCHOR.MIDDLE)
+    paras = []
     for name, url in items:
-        out.append((0, [(name, "b")]))
-        out.append((1, [(url, "l", {"url": "https://" + url.split(" ")[0]})]))
-    return out
-
-
-fill(shp(s, "Text 14"), link_list([("IDD – Indian Driving Dataset", "idd.insaan.iiit.ac.in"), ("MoRTH – Road Accidents in India", "morth.nic.in"),
-                                   ("OpenStreetMap", "openstreetmap.org"), ("Wikimedia Commons", "commons.wikimedia.org")]))
-fill(shp(s, "Text 17"), link_list([("SIH 2026 – PS SIH26037", "sih.gov.in"), ("MathWorks – RoadRunner & ADT", "mathworks.com")]) +
-     [(0, [("Problem focus: unmarked roads, mixed traffic, informal merges, obstacles.", "n")])])
-fill(shp(s, "Text 20"), link_list([("Ultralytics YOLO", "docs.ultralytics.com"), ("PyTorch", "pytorch.org/docs"),
-                                   ("OpenCV", "docs.opencv.org"), ("Flask", "flask.palletsprojects.com")]))
-fill(shp(s, "Text 21"), [[("Sources: ", "b"), ("IEEE T-IV · ECCV · NeurIPS · CVPR · IDD (IIIT-H) · MoRTH · OpenStreetMap · SIH 2026 · Ultralytics · PyTorch · OpenCV", "i")]])
-for n in range(1, 7):
-    remove(next(x for x in s.shapes if x.name == f"Image {n}"))
-tiles = [("Road Safety", "MoRTH road-safety goals", "Earlier recognition of path conflicts on Indian roads", RED),
-         ("IndiaAI Mission", "AI for Indian conditions", "Perception and planning built for Indian traffic", BLUE),
-         ("Atmanirbhar Bharat", "Self-reliant technology", "Home-grown autonomous-driving intelligence", "E8731A"),
-         ("Make in India", "Indigenous automotive tech", "ADAS software developed for Indian vehicles", GREEN),
-         ("Smart Cities Mission", "Intelligent urban mobility", "Adaptive navigation in dense city traffic", PURPLE),
-         ("Digital India", "Software-first innovation", "Open, modular and explainable mobility software", TEAL)]
-for i, (t1, t2, t3, col) in enumerate(tiles):
-    x, y = 7.02 + (i % 2) * 2.96, 1.55 + (i // 2) * 1.47
-    rect(s, x, y, 2.8, 1.33, fill="FFFFFF", line="DDE3EA", radius=0.06)
-    rect(s, x + 0.18, y + 0.2, 0.08, 0.5, fill=col)
-    text(s, x + 0.36, y + 0.16, 2.35, 0.36, t1, size=15, bold=True, color=col)
-    text(s, x + 0.36, y + 0.52, 2.35, 0.2, t2, size=8.5, bold=True, color=NAVY)
-    text(s, x + 0.18, y + 0.84, 2.5, 0.4, t3, size=8, color=SUB)
+        paras.append([(name, {"bold": True, "color": DNAVY})])
+        paras.append([(url, {"size": 7.8, "url": "https://" + url.split(" ")[0], "underline": True, "color": "1155CC"})])
+    if t1 == "SIH & CONTEXT":
+        paras.append([("Problem focus: unmarked roads, mixed traffic, informal merges, obstacles.", {"color": SUB})])
+    text(s, x + 0.14, 4.55, lw3 - 0.24, 1.95, paras, size=8.3, space=2)
+text(s, L, 6.63, 8.15, 0.3, [[("Sources: ", {"bold": True, "italic": False}), ("IEEE T-IV · ECCV · NeurIPS · CVPR · IDD (IIIT-H) · MoRTH · OpenStreetMap · SIH 2026 · Ultralytics · PyTorch · OpenCV", {})]],
+     size=7.5, color=SUB, italic=True, anchor=MSO_ANCHOR.MIDDLE)
+RX = 8.8
+RW = 12.93 - RX
+chip(s, RX, 1.22, "NATIONAL ALIGNMENT", TEAL)
+tiles = [("Road Safety", "MoRTH road-safety goals", "Earlier recognition of path conflicts on Indian roads", RED, "shield"),
+         ("IndiaAI Mission", "AI for Indian conditions", "Perception and planning built for Indian traffic", BLUE, "brain"),
+         ("Atmanirbhar Bharat", "Self-reliant technology", "Home-grown autonomous-driving intelligence", "E8731A", "rocket"),
+         ("Make in India", "Indigenous automotive tech", "ADAS software developed for Indian vehicles", GREEN, "car"),
+         ("Smart Cities Mission", "Intelligent urban mobility", "Adaptive navigation in dense city traffic", PURPLE, "map"),
+         ("Digital India", "Software-first innovation", "Open, modular and explainable mobility software", TEAL, "web")]
+for i, (t1, t2, t3, col, ic) in enumerate(tiles):
+    y = 1.55 + i * 0.9
+    card(s, RX, y, RW, 0.82, fill=LIGHT)
+    icon(s, ic, RX + 0.12, y + 0.17, 0.48, "w", circle=col, pad=0.22)
+    text(s, RX + 0.72, y + 0.06, RW - 0.8, 0.28, [[(t1, {"bold": True, "color": col, "size": 11}), ("   " + t2, {"bold": True, "size": 7.5, "color": DNAVY})]], size=11,
+         anchor=MSO_ANCHOR.MIDDLE)
+    text(s, RX + 0.72, y + 0.38, RW - 0.8, 0.38, t3, size=8, color=SUB)
 
 # drop relationships to pictures that were removed (reference-deck images must not stay inside the package)
-for s in SL:
-    xml = etree.tostring(s._element).decode()
-    for rId, rel in list(s.part.rels.items()):
+for s_ in prs.slides:
+    xml = etree.tostring(s_._element).decode()
+    for rId, rel in list(s_.part.rels.items()):
         if rel.reltype == RT.IMAGE and f'"{rId}"' not in xml:
-            s.part.drop_rel(rId)
+            s_.part.drop_rel(rId)
 
 dst = os.path.join(ROOT, "PathSense_SIH_Presentation.pptx")
 prs.save(dst)
